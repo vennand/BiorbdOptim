@@ -175,6 +175,7 @@ class OptimalControlProgram:
         # Declare the parameters to optimize
         self.param_to_optimize = {}
         self.__define_variable_time(initial_time_guess, time_min, time_max)
+        self.__define_variable_gravity(default_gravity, deviation_min, deviation_max)
 
         # Define dynamic problem
         self.__add_to_nlp("ode_solver", ode_solver, True)
@@ -366,6 +367,64 @@ class OptimalControlProgram:
                 self.V = vertcat(self.V, nlp["tf"])
                 P.append(self.V[-1])
         self.param_to_optimize["time"] = P
+
+        nV = len(initial_guess)
+        V_bounds = Bounds(minimum, maximum, interpolation_type=InterpolationType.CONSTANT)
+        V_bounds.check_and_adjust_dimensions(nV, 1)
+        self.V_bounds.concatenate(V_bounds)
+
+        V_init = InitialConditions(initial_guess, interpolation_type=InterpolationType.CONSTANT)
+        V_init.check_and_adjust_dimensions(nV, 1)
+        self.V_init.concatenate(V_init)
+
+    def __init_gravity(self, phase_time, objective_functions, constraints):
+        if isinstance(phase_time, (int, float)):
+            phase_time = [phase_time]
+        phase_time = list(phase_time)
+        initial_time_guess, time_min, time_max = [], [], []
+        has_penalty = self.__define_parameters_phase_time(
+            objective_functions, initial_time_guess, phase_time, time_min, time_max
+        )
+        self.__define_parameters_phase_time(
+            constraints, initial_time_guess, phase_time, time_min, time_max, has_penalty=has_penalty
+        )
+        return phase_time, initial_time_guess, time_min, time_max
+
+    def __define_parameters_gravity(
+        self, penalty_functions, initial_time_guess, phase_time, time_min, time_max, has_penalty=False
+    ):
+        for i, penalty_functions_phase in enumerate(penalty_functions):
+            for pen_fun in penalty_functions_phase:
+                if (
+                    pen_fun["type"] == Objective.Mayer.MINIMIZE_TIME
+                    or pen_fun["type"] == Objective.Lagrange.MINIMIZE_TIME
+                    or pen_fun["type"] == Constraint.TIME_CONSTRAINT
+                ):
+                    if has_penalty and i == 0:
+                        raise RuntimeError("Time constraint/objective cannot declare more than once")
+                    has_penalty = True
+
+                    initial_time_guess.append(phase_time[i])
+                    phase_time[i] = casadi.MX.sym(f"time_phase_{i}", 1, 1)
+                    time_min.append(pen_fun["minimum"] if "minimum" in pen_fun else 0)
+                    time_max.append(pen_fun["maximum"] if "maximum" in pen_fun else inf)
+        return has_penalty
+
+    def __define_variable_gravity(self, initial_guess, minimum, maximum):
+        """
+        For variable gravity in spherical coordinates, puts X_bounds and U_bounds in V_bounds.
+        Links X and U with V.
+        :param nlp: The nlp problem
+        :param initial_guess: The initial values taken from the default gravity vector
+        :param minimum: variable gravity minimums as set by user (default: (0,-pi))
+        :param maximum: variable gravity maximums as set by user (default: (pi,pi))
+        """
+        P = []
+        for nlp in self.nlp:
+            if isinstance(nlp["gravity"], MX):
+                self.V = vertcat(self.V, nlp["gravity"])
+                P.append(self.V[-1])
+        self.param_to_optimize["gravity"] = P
 
         nV = len(initial_guess)
         V_bounds = Bounds(minimum, maximum, interpolation_type=InterpolationType.CONSTANT)
