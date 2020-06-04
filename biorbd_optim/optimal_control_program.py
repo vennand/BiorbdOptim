@@ -82,6 +82,7 @@ class OptimalControlProgram:
             "problem_type": problem_type,
             "number_shooting_points": number_shooting_points,
             "phase_time": phase_time,
+            "gravity": biorbd_model.getGravity(),
             "X_init": X_init,
             "U_init": U_init,
             "X_bounds": X_bounds,
@@ -122,6 +123,13 @@ class OptimalControlProgram:
         self.__add_to_nlp(
             "dt", [self.nlp[i]["tf"] / max(self.nlp[i]["ns"], 1) for i in range(self.nb_phases)], False,
         )
+            # Gravity optimization
+        self.initial_gravity = biorbd_model.getGravity()
+        gravity, initial_gravity, gravity_min, gravity_max = self.__init_gravity(
+            self.initial_gravity, bounds
+        )
+        self.__add_to_nlp("gravity", gravity.to_mx(), False)
+
         self.is_cyclic_constraint = is_cyclic_constraint
         self.is_cyclic_objective = is_cyclic_objective
         self.nb_threads = nb_threads
@@ -175,7 +183,7 @@ class OptimalControlProgram:
         # Declare the parameters to optimize
         self.param_to_optimize = {}
         self.__define_variable_time(initial_time_guess, time_min, time_max)
-        self.__define_variable_gravity(default_gravity, deviation_min, deviation_max)
+        self.__define_variable_gravity(initial_gravity, gravity_min, gravity_max)
 
         # Define dynamic problem
         self.__add_to_nlp("ode_solver", ode_solver, True)
@@ -380,38 +388,13 @@ class OptimalControlProgram:
         V_init.check_and_adjust_dimensions(nV, 1)
         self.V_init.concatenate(V_init)
 
-    def __init_gravity(self, phase_time, objective_functions, constraints):
-        if isinstance(phase_time, (int, float)):
-            phase_time = [phase_time]
-        phase_time = list(phase_time)
-        initial_time_guess, time_min, time_max = [], [], []
-        has_penalty = self.__define_parameters_phase_time(
-            objective_functions, initial_time_guess, phase_time, time_min, time_max
-        )
-        self.__define_parameters_phase_time(
-            constraints, initial_time_guess, phase_time, time_min, time_max, has_penalty=has_penalty
-        )
-        return phase_time, initial_time_guess, time_min, time_max
-
-    def __define_parameters_gravity(
-        self, penalty_functions, initial_time_guess, phase_time, time_min, time_max, has_penalty=False
-    ):
-        for i, penalty_functions_phase in enumerate(penalty_functions):
-            for pen_fun in penalty_functions_phase:
-                if (
-                    pen_fun["type"] == Objective.Mayer.MINIMIZE_TIME
-                    or pen_fun["type"] == Objective.Lagrange.MINIMIZE_TIME
-                    or pen_fun["type"] == Constraint.TIME_CONSTRAINT
-                ):
-                    if has_penalty and i == 0:
-                        raise RuntimeError("Time constraint/objective cannot declare more than once")
-                    has_penalty = True
-
-                    initial_time_guess.append(phase_time[i])
-                    phase_time[i] = casadi.MX.sym(f"time_phase_{i}", 1, 1)
-                    time_min.append(pen_fun["minimum"] if "minimum" in pen_fun else 0)
-                    time_max.append(pen_fun["maximum"] if "maximum" in pen_fun else inf)
-        return has_penalty
+    def __init_gravity(self, gravity, bounds):
+        initial_gravity = gravity
+        # Définir la matrice de rotation biorbd.Rotation.fromEulerAngles(biorbd.Vector(1), "zx")
+        gravity = casadi.MX.sym("gravity", 2, 1) * initial_gravity
+        gravity_min = bounds[0]
+        gravity_max = bounds[1]
+        return gravity, initial_gravity, gravity_min, gravity_max
 
     def __define_variable_gravity(self, initial_guess, minimum, maximum):
         """
