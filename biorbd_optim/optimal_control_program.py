@@ -82,7 +82,7 @@ class OptimalControlProgram:
             "problem_type": problem_type,
             "number_shooting_points": number_shooting_points,
             "phase_time": phase_time,
-            "gravity": biorbd_model.getGravity(),
+            "gravity": [model.getGravity() for model in biorbd_model],
             "X_init": X_init,
             "U_init": U_init,
             "X_bounds": X_bounds,
@@ -124,11 +124,15 @@ class OptimalControlProgram:
             "dt", [self.nlp[i]["tf"] / max(self.nlp[i]["ns"], 1) for i in range(self.nb_phases)], False,
         )
             # Gravity optimization
-        self.initial_gravity = biorbd_model.getGravity()
-        gravity, initial_gravity, gravity_min, gravity_max = self.__init_gravity(
+        self.initial_gravity = [model.getGravity() for model in biorbd_model]
+        pi = 3.14159
+        bounds = ((0, -pi), (pi, pi))
+        gravity, initial_gravity, gravity_min, gravity_max, angle = self.__init_gravity(
             self.initial_gravity, bounds
         )
-        self.__add_to_nlp("gravity", gravity.to_mx(), False)
+        self.__add_to_nlp("gravity_angle", angle, False)
+        for i, model in enumerate(biorbd_model):
+            model.setGravity(gravity[i])
 
         self.is_cyclic_constraint = is_cyclic_constraint
         self.is_cyclic_objective = is_cyclic_objective
@@ -389,12 +393,19 @@ class OptimalControlProgram:
         self.V_init.concatenate(V_init)
 
     def __init_gravity(self, gravity, bounds):
-        initial_gravity = gravity
-        # Définir la matrice de rotation biorbd.Rotation.fromEulerAngles(biorbd.Vector(1), "zx")
-        gravity = casadi.MX.sym("gravity", 2, 1) * initial_gravity
-        gravity_min = bounds[0]
-        gravity_max = bounds[1]
-        return gravity, initial_gravity, gravity_min, gravity_max
+        angle = []
+        initial_gravity = []
+        gravity_min = []
+        gravity_max = []
+        for i, _ in enumerate(gravity):
+            angle.append(casadi.MX.sym("gravity_angle", 2, 1))
+            initial_gravity.append(gravity[i])
+            # gravity[i] = biorbd.Rotation.fromEulerAngles(angle[i], "zx").to_mx() * gravity[i].to_mx()
+            gravity[i].applyRT(biorbd.RotoTrans.combineRotAndTrans(biorbd.Rotation.fromEulerAngles(angle[i], 'yz'),
+                                                          biorbd.Vector3d()))
+            gravity_min.append(bounds[0])
+            gravity_max.append(bounds[1])
+        return gravity, initial_gravity, gravity_min, gravity_max, angle
 
     def __define_variable_gravity(self, initial_guess, minimum, maximum):
         """
@@ -407,10 +418,10 @@ class OptimalControlProgram:
         """
         P = []
         for nlp in self.nlp:
-            if isinstance(nlp["gravity"], MX):
-                self.V = vertcat(self.V, nlp["gravity"])
+            if isinstance(nlp["gravity_angle"], MX):
+                self.V = vertcat(self.V, nlp["gravity_angle"])
                 P.append(self.V[-1])
-        self.param_to_optimize["gravity"] = P
+        self.param_to_optimize["gravity_angle"] = P
 
         nV = len(initial_guess)
         V_bounds = Bounds(minimum, maximum, interpolation_type=InterpolationType.CONSTANT)
