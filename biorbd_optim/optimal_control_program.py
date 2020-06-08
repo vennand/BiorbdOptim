@@ -38,15 +38,16 @@ class OptimalControlProgram:
         U_bounds,
         objective_functions=(),
         constraints=(),
+        parameters=(),
         external_forces=(),
         ode_solver=OdeSolver.RK,
+        nb_integration_steps=5,
         all_generalized_mapping=None,
         q_mapping=None,
         q_dot_mapping=None,
         tau_mapping=None,
         plot_mappings=None,
-        is_cyclic_objective=False,
-        is_cyclic_constraint=False,
+        phase_transitions=(),
         nb_threads=1,
     ):
         """
@@ -54,15 +55,27 @@ class OptimalControlProgram:
         Defines also all constraints including continuity constraints.
         Defines the sum of all objective functions weight.
 
-        :param biorbd_model: Biorbd model loaded from the biorbd.Model() function
+        :param biorbd_model: Biorbd model loaded from the biorbd.Model() function.
         :param problem_type: A selected method handler of the class problem_type.ProblemType.
-        :param ode_solver: Name of chosen ode, available in OdeSolver enum class.
-        :param number_shooting_points: Subdivision number.
-        :param phase_time: Simulation time in seconds.
+        :param number_shooting_points: Subdivision number. (integer)
+        :param phase_time: Simulation time in seconds. (float)
+        :param X_init: States initial guess. (MX.sym from CasADi)
+        :param U_init: Controls initial guess. (MX.sym from CasADi)
+        :param X_bounds: States upper and lower bounds. (Instance of the class Bounds)
+        :param U_bounds: Controls upper and lower bounds. (Instance of the class Bounds)
         :param objective_functions: Tuple of tuple of objectives functions handler's and weights.
         :param X_bounds: Instance of the class Bounds.
         :param U_bounds: Instance of the class Bounds.
         :param constraints: Tuple of constraints, instant (which node(s)) and tuple of geometric structures used.
+        :param external_forces: Tuple of external forces.
+        :param ode_solver: Name of chosen ode solver to use. (OdeSolver.COLLOCATION, OdeSolver.RK, OdeSolver.CVODES or
+        OdeSolver.NO_SOLVER)
+        :param all_generalized_mapping: States and controls mapping. (Instance of class Mapping)
+        :param q_mapping: Generalized coordinates position states mapping. (Instance of class Mapping)
+        :param q_dot_mapping: Generalized coordinates velocity states mapping. (Instance of class Mapping)
+        :param tau_mapping: Torque controls mapping. (Instance of class Mapping)
+        :param plot_mappings: Plot mapping. (Instance of class Mapping)
+        :param nb_threads: Number of threads used for the resolution of the problem. Default: not parallelized (integer)
         """
 
         if isinstance(biorbd_model, str):
@@ -82,25 +95,35 @@ class OptimalControlProgram:
             "problem_type": problem_type,
             "number_shooting_points": number_shooting_points,
             "phase_time": phase_time,
-            "gravity": [model.getGravity() for model in biorbd_model],
             "X_init": X_init,
             "U_init": U_init,
             "X_bounds": X_bounds,
             "U_bounds": U_bounds,
             "objective_functions": [],
             "constraints": [],
+            "parameters": [],
             "external_forces": external_forces,
             "ode_solver": ode_solver,
+            "nb_integration_steps": nb_integration_steps,
             "all_generalized_mapping": all_generalized_mapping,
             "q_mapping": q_mapping,
             "q_dot_mapping": q_dot_mapping,
             "tau_mapping": tau_mapping,
             "plot_mappings": plot_mappings,
-            "is_cyclic_objective": is_cyclic_objective,
-            "is_cyclic_constraint": is_cyclic_constraint,
+            "phase_transitions": phase_transitions,
             "nb_threads": nb_threads,
         }
 
+        # Declare optimization variables
+        self.J = []
+        self.g = []
+        self.g_bounds = []
+        self.V = []
+        self.V_bounds = Bounds(interpolation_type=InterpolationType.CONSTANT)
+        self.V_init = InitialConditions(interpolation_type=InterpolationType.CONSTANT)
+        self.param_to_optimize = {}
+
+        # nlp is the core of a phase
         self.nlp = [{} for _ in range(self.nb_phases)]
         self.__add_to_nlp("model", biorbd_model, False)
         self.__add_to_nlp("phase_idx", [i for i in range(self.nb_phases)], False)
@@ -108,6 +131,7 @@ class OptimalControlProgram:
         # Prepare some variables
         constraints = self.__init_penalty(constraints, "constraints")
         objective_functions = self.__init_penalty(objective_functions, "objective_functions")
+        parameters = self.__init_penalty(parameters, "parameters")
 
         # Define some aliases
         self.__add_to_nlp("ns", number_shooting_points, False)
@@ -123,17 +147,6 @@ class OptimalControlProgram:
         self.__add_to_nlp(
             "dt", [self.nlp[i]["tf"] / max(self.nlp[i]["ns"], 1) for i in range(self.nb_phases)], False,
         )
-            # Gravity optimization
-        self.initial_gravity = [model.getGravity() for model in biorbd_model]
-        pi = 3.14159
-        bounds = ((0, -pi), (pi, pi))
-        gravity, initial_gravity, gravity_min, gravity_max, angle = self.__init_gravity(
-            self.initial_gravity, bounds
-        )
-        self.__add_to_nlp("gravity_angle", angle, False)
-        for i, model in enumerate(biorbd_model):
-            model.setGravity(gravity[i])
-
         self.is_cyclic_constraint = is_cyclic_constraint
         self.is_cyclic_objective = is_cyclic_objective
         self.nb_threads = nb_threads
@@ -158,10 +171,20 @@ class OptimalControlProgram:
             for key in plot_mappings:
                 reshaped_plot_mappings[i][key] = plot_mappings[key][i]
         self.__add_to_nlp("plot_mappings", reshaped_plot_mappings, False)
+
+        # Prepare the parameters to optimize
+        if len(parameters) > 0:
+            for parameter in parameters[0]:  # 0 since parameters are not associated with phases
+                self.add_parameter_to_optimize(parameter)
+
+        # Declare the time to optimize
+        self.__define_variable_time(initial_time_guess, time_min, time_max)
+
+        # Prepare the dynamics of the program
         self.__add_to_nlp("problem_type", problem_type, False)
         for i in range(self.nb_phases):
             self.__initialize_nlp(self.nlp[i])
-            self.nlp[i]["problem_type"](self.nlp[i])
+            self.nlp[i]["problem_type"](self, self.nlp[i])
 
         # Prepare path constraints
         self.__add_to_nlp("X_bounds", X_bounds, False)
@@ -187,14 +210,22 @@ class OptimalControlProgram:
         # Declare the parameters to optimize
         self.param_to_optimize = {}
         self.__define_variable_time(initial_time_guess, time_min, time_max)
-        self.__define_variable_gravity(initial_gravity, gravity_min, gravity_max)
 
         # Define dynamic problem
+        self.__add_to_nlp(
+            "nb_integration_steps", nb_integration_steps, True
+        )  # Number of steps of integration (for now only RK4 steps are implemented)
         self.__add_to_nlp("ode_solver", ode_solver, True)
         for i in range(self.nb_phases):
             if self.nlp[0]["nx"] != self.nlp[i]["nx"] or self.nlp[0]["nu"] != self.nlp[i]["nu"]:
                 raise RuntimeError("Dynamics with different nx or nu is not supported yet")
             self.__prepare_dynamics(self.nlp[i])
+
+        # Prepare phase transitions
+        self.phase_transitions = PhaseTransitionFunctions.prepare_phase_transitions(self, phase_transitions)
+
+        # Inner- and inter-phase continuity
+        ContinuityFunctions.continuity(self)
 
         # Prepare constraints
         self.g = []
@@ -204,10 +235,7 @@ class OptimalControlProgram:
             for i, constraint_phase in enumerate(constraints):
                 for constraint in constraint_phase:
                     self.add_constraint(constraint, i)
-
-        # Objective functions
-        self.J = []
-        ObjectiveFunction.continuity(self)
+        # Prepare objectives
         if len(objective_functions) > 0:
             for i, objective_functions_phase in enumerate(objective_functions):
                 for objective_function in objective_functions_phase:
@@ -215,6 +243,7 @@ class OptimalControlProgram:
 
     @staticmethod
     def __initialize_nlp(nlp):
+        """Start with an empty non linear problem"""
         nlp["nbQ"] = 0
         nlp["nbQdot"] = 0
         nlp["nbTau"] = 0
@@ -227,6 +256,7 @@ class OptimalControlProgram:
         nlp["g_bounds"] = []
 
     def __add_to_nlp(self, param_name, param, duplicate_if_size_is_one, _type=None):
+        """Adds coupled parameters to the non linear problem"""
         if isinstance(param, (list, tuple)):
             if len(param) != self.nb_phases:
                 raise RuntimeError(
@@ -253,19 +283,19 @@ class OptimalControlProgram:
     def __prepare_dynamics(self, nlp):
         """
         Builds CasaDI dynamics function.
-        :param dynamics_func: A selected method handler of the class dynamics.Dynamics.
-        :param ode_solver: Name of chosen ode, available in OdeSolver enum class.
+        :param nlp: The nlp problem
         """
 
         dynamics = nlp["dynamics_func"]
         ode_opt = {"t0": 0, "tf": nlp["dt"]}
-        if nlp["ode_solver"] == OdeSolver.RK or nlp["ode_solver"] == OdeSolver.COLLOCATION:
-            ode_opt["number_of_finite_elements"] = 5
+        if nlp["ode_solver"] == OdeSolver.COLLOCATION or nlp["ode_solver"] == OdeSolver.RK:
+            ode_opt["number_of_finite_elements"] = nlp["nb_integration_steps"]
 
-        ode = {"x": nlp["x"], "p": nlp["u"], "ode": dynamics(nlp["x"], nlp["u"])}
+        ode = {"x": nlp["x"], "p": nlp["u"], "ode": dynamics(nlp["x"], nlp["u"], nlp["p"])}
         nlp["dynamics"] = []
         nlp["par_dynamics"] = {}
         if nlp["ode_solver"] == OdeSolver.RK:
+            ode_opt["param"] = nlp["p"]
             ode_opt["idx"] = 0
             ode["ode"] = dynamics
             if "external_forces" in nlp:
@@ -275,14 +305,14 @@ class OptimalControlProgram:
             else:
                 nlp["dynamics"].append(RK4(ode, ode_opt))
         elif nlp["ode_solver"] == OdeSolver.COLLOCATION:
-            if isinstance(nlp["tf"], casadi.MX):
-                raise RuntimeError("OdeSolver.COLLOCATION cannot be used while optimizing the time parameter")
+            if len(self.param_to_optimize) != 0:
+                raise RuntimeError("OdeSolver.COLLOCATION cannot be used while optimizing parameters")
             if "external_forces" in nlp:
                 raise RuntimeError("COLLOCATION cannot be used with external_forces")
             nlp["dynamics"].append(casadi.integrator("integrator", "collocation", ode, ode_opt))
         elif nlp["ode_solver"] == OdeSolver.CVODES:
-            if isinstance(nlp["tf"], casadi.MX):
-                raise RuntimeError("OdeSolver.CVODES cannot be used while optimizing the time parameter")
+            if len(self.param_to_optimize) != 0:
+                raise RuntimeError("OdeSolver.CVODES cannot be used while optimizing parameters")
             if "external_forces" in nlp:
                 raise RuntimeError("CVODES cannot be used with external_forces")
             nlp["dynamics"].append(casadi.integrator("integrator", "cvodes", ode, ode_opt))
@@ -296,7 +326,8 @@ class OptimalControlProgram:
         """
         For each node, puts X_bounds and U_bounds in V_bounds.
         Links X and U with V.
-        :param nlp: The nlp problem
+        :param nlp: The non linear problem.
+        :param idx_phase: Index of the phase. (integer)
         """
         X = []
         U = []
@@ -332,6 +363,16 @@ class OptimalControlProgram:
         self.V_init.concatenate(V_init)
 
     def __init_phase_time(self, phase_time, objective_functions, constraints):
+        """
+        Initializes phase time bounds and guess.
+        Defines the objectives for each phase.
+        :param phase_time: Phases duration. (list of floats)?
+        :param objective_functions: Instance of class ObjectiveFunction.
+        :param constraints: Instance of class ConstraintFunction.
+        :return: phase_time -> Phases duration. (list) , initial_time_guess -> Initial guess on the duration of the
+        phases. (list), time_min -> Minimal bounds on the duration of the phases. (list)  and time_max -> Maximal
+        bounds on the duration of the phases. (list)
+        """
         if isinstance(phase_time, (int, float)):
             phase_time = [phase_time]
         phase_time = list(phase_time)
@@ -369,70 +410,26 @@ class OptimalControlProgram:
 
     def __define_variable_time(self, initial_guess, minimum, maximum):
         """
-        For each variable time, puts X_bounds and U_bounds in V_bounds.
-        Links X and U with V.
-        :param nlp: The nlp problem
+        For each variable time, sets initial guess and bounds.
         :param initial_guess: The initial values taken from the phase_time vector
         :param minimum: variable time minimums as set by user (default: 0)
         :param maximum: variable time maximums as set by user (default: inf)
         """
-        P = []
+        i = 0
         for nlp in self.nlp:
             if isinstance(nlp["tf"], MX):
-                self.V = vertcat(self.V, nlp["tf"])
-                P.append(self.V[-1])
-        self.param_to_optimize["time"] = P
-
-        nV = len(initial_guess)
-        V_bounds = Bounds(minimum, maximum, interpolation_type=InterpolationType.CONSTANT)
-        V_bounds.check_and_adjust_dimensions(nV, 1)
-        self.V_bounds.concatenate(V_bounds)
-
-        V_init = InitialConditions(initial_guess, interpolation_type=InterpolationType.CONSTANT)
-        V_init.check_and_adjust_dimensions(nV, 1)
-        self.V_init.concatenate(V_init)
-
-    def __init_gravity(self, gravity, bounds):
-        angle = []
-        initial_gravity = []
-        gravity_min = []
-        gravity_max = []
-        for i, _ in enumerate(gravity):
-            angle.append(casadi.MX.sym("gravity_angle", 2, 1))
-            initial_gravity.append(gravity[i])
-            # gravity[i] = biorbd.Rotation.fromEulerAngles(angle[i], "zx").to_mx() * gravity[i].to_mx()
-            gravity[i].applyRT(biorbd.RotoTrans.combineRotAndTrans(biorbd.Rotation.fromEulerAngles(angle[i], 'yz'),
-                                                          biorbd.Vector3d()))
-            gravity_min.append(bounds[0])
-            gravity_max.append(bounds[1])
-        return gravity, initial_gravity, gravity_min, gravity_max, angle
-
-    def __define_variable_gravity(self, initial_guess, minimum, maximum):
-        """
-        For variable gravity in spherical coordinates, puts X_bounds and U_bounds in V_bounds.
-        Links X and U with V.
-        :param nlp: The nlp problem
-        :param initial_guess: The initial values taken from the default gravity vector
-        :param minimum: variable gravity minimums as set by user (default: (0,-pi))
-        :param maximum: variable gravity maximums as set by user (default: (pi,pi))
-        """
-        P = []
-        for nlp in self.nlp:
-            if isinstance(nlp["gravity_angle"], MX):
-                self.V = vertcat(self.V, nlp["gravity_angle"])
-                P.append(self.V[-1])
-        self.param_to_optimize["gravity_angle"] = P
-
-        nV = len(initial_guess)
-        V_bounds = Bounds(minimum, maximum, interpolation_type=InterpolationType.CONSTANT)
-        V_bounds.check_and_adjust_dimensions(nV, 1)
-        self.V_bounds.concatenate(V_bounds)
-
-        V_init = InitialConditions(initial_guess, interpolation_type=InterpolationType.CONSTANT)
-        V_init.check_and_adjust_dimensions(nV, 1)
-        self.V_init.concatenate(V_init)
+                time_bounds = Bounds(minimum[i], maximum[i], interpolation_type=InterpolationType.CONSTANT)
+                time_init = InitialConditions(initial_guess[i])
+                Parameters.add_to_V(self, "time", 1, None, time_bounds, time_init, nlp["tf"])
+                i += 1
 
     def __init_penalty(self, penalties, penalty_type):
+        """
+        Initializes penalties (objective or constraint).
+        :param penalties: Penalties. (dictionary or list of tuples)
+        :param penalty_type: Penalty type (Instance of class PenaltyType)
+        :return: New penalties. (dictionary)
+        """
         if len(penalties) > 0:
             if self.nb_phases == 1:
                 if isinstance(penalties, dict):
@@ -449,39 +446,68 @@ class OptimalControlProgram:
         self.modify_objective_function(new_objective_function, index_in_phase=-1, phase_number=phase_number)
 
     def modify_objective_function(self, new_objective_function, index_in_phase, phase_number=-1):
-        self._modify_penalty(new_objective_function, index_in_phase, phase_number, "objective_functions")
+        self._modify_penalty(new_objective_function, index_in_phase, phase_number, "objective_functions", True)
 
     def add_constraint(self, new_constraint, phase_number=-1):
         self.modify_constraint(new_constraint, index_in_phase=-1, phase_number=phase_number)
 
     def modify_constraint(self, new_constraint, index_in_phase, phase_number=-1):
-        self._modify_penalty(new_constraint, index_in_phase, phase_number, "constraints")
+        self._modify_penalty(new_constraint, index_in_phase, phase_number, "constraints", True)
 
-    def _modify_penalty(self, new_penalty, index_in_phase, phase_number, penalty_name):
+    def add_parameter_to_optimize(self, new_parameter):
+        self.modify_parameter_to_optimize(new_parameter)
+
+    def modify_parameter_to_optimize(self, new_parameter, penalty_idx=-1):
+        self._modify_penalty(new_parameter, penalty_idx, -1, "parameters", False)
+
+    def _modify_penalty(self, new_penalty, penalty_idx, phase_number, penalty_name, penalty_in_a_phase):
+        """
+        Modification of a penalty (constraint or objective)
+        :param new_penalty: Penalty to keep after the modification.
+        :param penalty_idx: Index of the penalty to be modified. (integer)
+        :param phase_number: Index of the phase in which the penalty will be modified. (integer)
+        :param penalty_name: Name of the penalty to modify. (string)
+        """
         if len(self.nlp) == 1:
             phase_number = 0
         else:
-            if phase_number < 0:
+            if phase_number < 0 and penalty_in_a_phase:
                 raise RuntimeError("phase_number must be specified for multiphase OCP")
 
-        while phase_number >= len(self.original_values[penalty_name]):
+        while phase_number >= len(self.original_values[penalty_name]) and penalty_in_a_phase:
             self.original_values[penalty_name].append([])
 
-        if index_in_phase < 0:
-            self.original_values[penalty_name][phase_number].append(deepcopy(new_penalty))
+        if penalty_in_a_phase:
+            if penalty_idx < 0:
+                self.original_values[penalty_name][phase_number].append(deepcopy(new_penalty))
+            else:
+                if penalty_idx >= len(self.original_values[penalty_name][phase_number]):
+                    raise RuntimeError("It is not possible to modify a penalty when the penalty is not defined")
+                self.original_values[penalty_name][phase_number][penalty_idx] = deepcopy(new_penalty)
         else:
-            if index_in_phase >= len(self.original_values[penalty_name][phase_number]):
-                raise RuntimeError("It is not possible to modify a penalty when the penalty is not defined")
-            self.original_values[penalty_name][phase_number][index_in_phase] = deepcopy(new_penalty)
+            if penalty_idx < 0:
+                self.original_values[penalty_name].append(deepcopy(new_penalty))
+            else:
+                if penalty_idx >= len(self.original_values[penalty_name]):
+                    raise RuntimeError("It is not possible to modify a penalty when the penalty is not defined")
+                self.original_values[penalty_name][penalty_idx] = deepcopy(new_penalty)
 
         if penalty_name == "objective_functions":
-            ObjectiveFunction.add_or_replace(self, self.nlp[phase_number], new_penalty, index_in_phase)
+            ObjectiveFunction.add_or_replace(self, self.nlp[phase_number], new_penalty, penalty_idx)
         elif penalty_name == "constraints":
-            ConstraintFunction.add_or_replace(self, self.nlp[phase_number], new_penalty, index_in_phase)
+            ConstraintFunction.add_or_replace(self, self.nlp[phase_number], new_penalty, penalty_idx)
+        elif penalty_name == "parameters":
+            Parameters.add_or_replace(self, new_penalty, penalty_idx)
         else:
             raise RuntimeError("Unrecognized penalty")
 
     def add_plot(self, fig_name, update_function, phase_number=-1, **parameters):
+        """
+        Adds plots to show the result of the optimization
+        :param fig_name: Name of the figure (string)
+        :param update_function: Function to be plotted. (string) ???
+        :param phase_number: Phase to be plotted. (integer)
+        """
         if "combine_to" in parameters:
             raise RuntimeError(
                 "'combine_to' cannot be specified in add_plot, " "please use same 'fig_name' to combine plots"
@@ -516,6 +542,10 @@ class OptimalControlProgram:
         """
         Gives to CasADi states, controls, constraints, sum of all objective functions and theirs bounds.
         Gives others parameters to control how solver works.
+        :param solver: Name of the solver to use during the optimization. (string)
+        :param show_online_optim: if True, optimization process is graphed in realtime. (bool)
+        :param options_ipopt: See Ippot documentation for options. (dictionary)
+        :return: Solution of the problem. (dictionary)
         """
         if return_iterations and not show_online_optim:
             raise RuntimeError("return_iterations without show_online_optim is not implemented yet.")
@@ -592,6 +622,12 @@ class OptimalControlProgram:
         return out
 
     def save(self, sol, file_path, sol_iterations=None):
+        """
+        :param sol: Solution of the optimization returned by CasADi.
+        :param file_path: Path of the file where the solution is saved. (string)
+        :param sol_iterations: The solutions for each iteration
+        Saves results of the optimization into a .bo file
+        """
         _, ext = os.path.splitext(file_path)
         if ext == "":
             file_path = file_path + ".bo"
@@ -629,6 +665,12 @@ class OptimalControlProgram:
 
     @staticmethod
     def load(file_path):
+        """
+        Loads results of a previous optimization from a .bo file
+        :param file_path: Path of the file where the solution is saved. (string)
+        :return: ocp -> Optimal control program. (instance of OptimalControlProgram class) and
+        sol -> Solution of the optimization. (dictionary)
+        """
         with open(file_path, "rb") as file:
             data = pickle.load(file)
             ocp = OptimalControlProgram(**data["ocp_initilializer"])
