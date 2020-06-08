@@ -11,7 +11,9 @@ from .enums import OdeSolver
 from .mapping import BidirectionalMapping
 from .path_conditions import Bounds, InitialConditions, InterpolationType
 from .constraints import ConstraintFunction, Constraint
+from .continuity import ContinuityFunctions, StateTransitionFunctions
 from .objective_functions import Objective, ObjectiveFunction
+from .parameters import Parameters
 from .plot import OnlineCallback, CustomPlot
 from .integrator import RK4
 from .biorbd_interface import BiorbdInterface
@@ -47,7 +49,7 @@ class OptimalControlProgram:
         q_dot_mapping=None,
         tau_mapping=None,
         plot_mappings=None,
-        phase_transitions=(),
+        state_transitions=(),
         nb_threads=1,
     ):
         """
@@ -64,8 +66,6 @@ class OptimalControlProgram:
         :param X_bounds: States upper and lower bounds. (Instance of the class Bounds)
         :param U_bounds: Controls upper and lower bounds. (Instance of the class Bounds)
         :param objective_functions: Tuple of tuple of objectives functions handler's and weights.
-        :param X_bounds: Instance of the class Bounds.
-        :param U_bounds: Instance of the class Bounds.
         :param constraints: Tuple of constraints, instant (which node(s)) and tuple of geometric structures used.
         :param external_forces: Tuple of external forces.
         :param ode_solver: Name of chosen ode solver to use. (OdeSolver.COLLOCATION, OdeSolver.RK, OdeSolver.CVODES or
@@ -75,6 +75,8 @@ class OptimalControlProgram:
         :param q_dot_mapping: Generalized coordinates velocity states mapping. (Instance of class Mapping)
         :param tau_mapping: Torque controls mapping. (Instance of class Mapping)
         :param plot_mappings: Plot mapping. (Instance of class Mapping)
+        :param state_transitions: State transitions (as a constraint, or an objective if there is a weight higher
+        than zero)
         :param nb_threads: Number of threads used for the resolution of the problem. Default: not parallelized (integer)
         """
 
@@ -110,7 +112,7 @@ class OptimalControlProgram:
             "q_dot_mapping": q_dot_mapping,
             "tau_mapping": tau_mapping,
             "plot_mappings": plot_mappings,
-            "phase_transitions": phase_transitions,
+            "state_transitions": state_transitions,
             "nb_threads": nb_threads,
         }
 
@@ -147,8 +149,6 @@ class OptimalControlProgram:
         self.__add_to_nlp(
             "dt", [self.nlp[i]["tf"] / max(self.nlp[i]["ns"], 1) for i in range(self.nb_phases)], False,
         )
-        self.is_cyclic_constraint = is_cyclic_constraint
-        self.is_cyclic_objective = is_cyclic_objective
         self.nb_threads = nb_threads
 
         # External forces
@@ -201,15 +201,8 @@ class OptimalControlProgram:
             self.nlp[i]["U_init"].check_and_adjust_dimensions(self.nlp[i]["nu"], self.nlp[i]["ns"] - 1)
 
         # Variables and constraint for the optimization program
-        self.V = []
-        self.V_bounds = Bounds(interpolation_type=InterpolationType.CONSTANT)
-        self.V_init = InitialConditions(interpolation_type=InterpolationType.CONSTANT)
         for i in range(self.nb_phases):
             self.__define_multiple_shooting_nodes_per_phase(self.nlp[i], i)
-
-        # Declare the parameters to optimize
-        self.param_to_optimize = {}
-        self.__define_variable_time(initial_time_guess, time_min, time_max)
 
         # Define dynamic problem
         self.__add_to_nlp(
@@ -222,15 +215,12 @@ class OptimalControlProgram:
             self.__prepare_dynamics(self.nlp[i])
 
         # Prepare phase transitions
-        self.phase_transitions = PhaseTransitionFunctions.prepare_phase_transitions(self, phase_transitions)
+        self.state_transitions = StateTransitionFunctions.prepare_state_transitions(self, state_transitions)
 
         # Inner- and inter-phase continuity
         ContinuityFunctions.continuity(self)
 
         # Prepare constraints
-        self.g = []
-        self.g_bounds = []
-        ConstraintFunction.continuity(self)
         if len(constraints) > 0:
             for i, constraint_phase in enumerate(constraints):
                 for constraint in constraint_phase:
