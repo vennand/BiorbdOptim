@@ -16,7 +16,7 @@ from biorbd_optim import (
 )
 
 
-def my_parameter_function(biorbd_model, value, target_value_via_custom_param):
+def my_parameter_function(biorbd_model, value):
     # The pre dynamics function is called right before defining the dynamics of the system. If one wants to
     # modify the dynamics (e.g. optimize the gravity in this case), then this function is the proper way to do it
     # `biorbd_model` and `value` are mandatory. The former is the actual model to modify, the latter is the casadi.MX
@@ -27,14 +27,7 @@ def my_parameter_function(biorbd_model, value, target_value_via_custom_param):
     biorbd_model.setGravity(gravity)
 
 
-def my_target_function(ocp, value, target_value_via_custom_param):
-    # The target function is a penalty function.
-    # `ocp` and `value` are mandatory. The rest is defined in the
-    # parameter by the user
-    return value - target_value_via_custom_param
-
-
-def prepare_ocp(biorbd_model_path, final_time, number_shooting_points, min_g, max_g):
+def prepare_ocp(biorbd_model_path, final_time, number_shooting_points, q_ref, min_g, max_g):
     # --- Options --- #
     biorbd_model = biorbd.Model(biorbd_model_path)
     torque_min, torque_max, torque_init = -30, 30, 0
@@ -43,7 +36,10 @@ def prepare_ocp(biorbd_model_path, final_time, number_shooting_points, min_g, ma
     n_tau = biorbd_model.nbGeneralizedTorque()
 
     # Add objective functions
-    objective_functions = {"type": Objective.Lagrange.MINIMIZE_TORQUE, "weight": 10}
+    objective_functions = (
+        {"type": Objective.Lagrange.TRACK_STATE, "weight": 1, "data_to_track": q_ref, "states_idx": range(biorbd_model.nbQ())},
+        {"type": Objective.Lagrange.MINIMIZE_TORQUE, "weight": 1e-7}
+    )
 
     # Dynamics
     problem_type = ProblemType.torque_driven
@@ -72,7 +68,7 @@ def prepare_ocp(biorbd_model_path, final_time, number_shooting_points, min_g, ma
     # Give the parameter some min and max bounds
     bound_gravity = Bounds(min_bound=min_g, max_bound=max_g, interpolation_type=InterpolationType.CONSTANT)
     # and an initial condition
-    initial_gravity = InitialConditions(7)
+    initial_gravity = InitialConditions([0, 0])
     parameters = {
         "name": "gravity_angle",  # The name of the parameter
         "function": my_parameter_function,  # The function that modifies the biorbd model
