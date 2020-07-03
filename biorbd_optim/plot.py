@@ -1,4 +1,5 @@
 import multiprocessing as mp
+from copy import copy
 import numpy as np
 import tkinter
 import pickle
@@ -6,11 +7,12 @@ import os
 from itertools import accumulate
 
 from matplotlib import pyplot as plt, lines
-from casadi import MX, Callback, nlpsol_out, nlpsol_n_out, Sparsity
+from casadi import Callback, nlpsol_out, nlpsol_n_out, Sparsity
 
 from .variable_optimization import Data
 from .mapping import Mapping
 from .enums import PlotType
+from .utils import check_version
 
 
 class CustomPlot:
@@ -61,16 +63,15 @@ class PlotOcp:
             self.tf = list(self.ocp.initial_phase_time)
         self.t_idx_to_optimize = []
         for i, nlp in enumerate(self.ocp.nlp):
-            if isinstance(nlp["tf"], MX):
+            if isinstance(nlp["tf"], self.ocp.CX):
                 self.t_idx_to_optimize.append(i)
-        self.__init_time_vector()
+        self.__update_time_vector()
 
         self.axes = {}
         self.plots = []
         self.plots_vertical_lines = []
         self.all_figures = []
 
-        running_cmp = 0
         self.automatically_organize = automatically_organize
         self._organize_windows(len(self.ocp.nlp[0]["var_states"]) + len(self.ocp.nlp[0]["var_controls"]),)
 
@@ -94,7 +95,7 @@ class PlotOcp:
                     pass
             fig.canvas.draw()
 
-    def __init_time_vector(self):
+    def __update_time_vector(self):
         """Sets x-axis array"""
         self.t = []
         self.t_integrated = []
@@ -103,7 +104,7 @@ class PlotOcp:
             nb_int_steps = nlp["nb_integration_steps"]
             dt_ns = self.tf[phase_idx] / nlp["ns"]
             time_phase_integrated = []
-            last_t_int = last_t
+            last_t_int = copy(last_t)
             for _ in range(nlp["ns"]):
                 time_phase_integrated.append(np.linspace(last_t_int, last_t_int + dt_ns, nb_int_steps + 1))
                 last_t_int += dt_ns
@@ -122,7 +123,11 @@ class PlotOcp:
             if "plot" in nlp:
                 for key in nlp["plot"]:
                     if nlp["plot"][key].phase_mappings is None:
-                        size = nlp["plot"][key].function(np.zeros((nlp["nx"], 1)), np.zeros((nlp["nu"], 1))).shape[0]
+                        size = (
+                            nlp["plot"][key]
+                            .function(np.zeros((nlp["nx"], 1)), np.zeros((nlp["nu"], 1)), np.zeros((nlp["np"], 1)))
+                            .shape[0]
+                        )
                         nlp["plot"][key].phase_mappings = Mapping(range(size))
                     else:
                         size = len(nlp["plot"][key].phase_mappings.map_idx)
@@ -158,7 +163,7 @@ class PlotOcp:
                 for k in mapping:
                     ax = axes[k]
                     if k < len(self.plot_func[variable][i].legend):
-                        axes[k].set_title(self.plot_func[variable][i].legend[mapping[k]])
+                        axes[k].set_title(self.plot_func[variable][i].legend[k])
                     ax.grid(color="k", linestyle="--", linewidth=0.5)
                     ax.set_xlim(0, self.t[-1][-1])
                     if nlp["plot"][variable].ylim:
@@ -262,6 +267,7 @@ class PlotOcp:
         data_states, data_controls, data_param = Data.get_data(
             self.ocp, V, get_parameters=True, integrate=True, concatenate=False
         )
+        data_param_in_dyn = np.array([data_param[key] for key in data_param if key != "time"]).squeeze()
 
         for _ in self.ocp.nlp:
             if self.t_idx_to_optimize:
@@ -296,6 +302,7 @@ class PlotOcp:
                         y_tp[:, :] = self.plot_func[key][i].function(
                             state[:, step_size * idx : step_size * (idx + 1)],
                             np.repeat(control[:, idx : idx + 1], step_size, axis=1),
+                            data_param_in_dyn,
                         )
                         all_y.append(y_tp)
 
@@ -307,13 +314,13 @@ class PlotOcp:
                 else:
                     y = np.empty((self.variable_sizes[i][key], len(self.t[i])))
                     y.fill(np.nan)
-                    y[:, :] = self.plot_func[key][i].function(state[:, ::step_size], control)
+                    y[:, :] = self.plot_func[key][i].function(state[:, ::step_size], control, data_param_in_dyn)
                     self.__append_to_ydata(y)
         self.__update_axes()
 
     def __update_xdata(self):
         """Update of the time in plots (independent axis)"""
-        self.__init_time_vector()
+        self.__update_time_vector()
         for plot in self.plots:
             phase_idx = plot[1]
             if plot[0] == PlotType.INTEGRATED:
@@ -338,6 +345,7 @@ class PlotOcp:
 
     def __update_axes(self):
         """Updates axes ranges"""
+        assert len(self.plots) == len(self.ydata)
         for i, plot in enumerate(self.plots):
             y = self.ydata[i]
 
@@ -402,9 +410,10 @@ class ShowResult:
         :param nb_frames: Number of frames in the animation. (integer)
         """
         try:
-            from BiorbdViz import BiorbdViz
+            import BiorbdViz
         except ModuleNotFoundError:
             raise RuntimeError("BiorbdViz must be install to animate the model")
+        check_version(BiorbdViz, "1.3.3", "1.4.0")
         data_interpolate, data_control = Data.get_data(
             self.ocp, self.sol["x"], integrate=False, interpolate_nb_frames=nb_frames
         )
@@ -413,18 +422,14 @@ class ShowResult:
 
         all_bioviz = []
         for idx_phase, data in enumerate(data_interpolate["q"]):
-            all_bioviz.append(BiorbdViz(loaded_model=self.ocp.nlp[idx_phase]["model"], **kwargs))
+            all_bioviz.append(BiorbdViz.BiorbdViz(loaded_model=self.ocp.nlp[idx_phase]["model"], **kwargs))
             all_bioviz[-1].load_movement(self.ocp.nlp[idx_phase]["q_mapping"].expand.map(data))
 
         b_is_visible = [True] * len(all_bioviz)
         while sum(b_is_visible):
             for i, b in enumerate(all_bioviz):
                 if b.vtk_window.is_active:
-                    if b.show_analyses_panel and b.is_animating:
-                        b.movement_slider[0].setValue(
-                            (b.movement_slider[0].value() + 1) % b.movement_slider[0].maximum()
-                        )
-                    b.refresh_window()
+                    b.update()
                 else:
                     b_is_visible[i] = False
 
