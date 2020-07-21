@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 import numpy as np
 
-from biorbd_optim import Data, OdeSolver
+from biorbd_optim import Data
 from .utils import TestUtils
 
 
@@ -179,6 +179,9 @@ def test_contact_forces_inequality_GREATER_THAN_constraint():
     # save and load
     TestUtils.save_and_load(sol, ocp, False)
 
+    # simulate
+    TestUtils.simulate(sol, ocp)
+
 
 def test_contact_forces_inequality_LESSER_THAN_constraint():
     PROJECT_FOLDER = Path(__file__).parent / ".."
@@ -253,6 +256,9 @@ def test_contact_forces_inequality_LESSER_THAN_constraint():
 
     # save and load
     TestUtils.save_and_load(sol, ocp, False)
+
+    # simulate
+    TestUtils.simulate(sol, ocp)
 
 
 def test_non_slipping_constraint():
@@ -344,3 +350,6 @@ def test_non_slipping_constraint():
 
     # save and load
     TestUtils.save_and_load(sol, ocp, False)
+
+    # simulate
+    TestUtils.simulate(sol, ocp)

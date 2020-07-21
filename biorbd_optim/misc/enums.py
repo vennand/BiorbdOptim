@@ -7,6 +7,16 @@ class Axe(IntEnum):
     Z = 2
 
 
+class Solver(Enum):
+    """
+    Solver to use
+    """
+
+    IPOPT = "Ipopt"
+    ACADOS = "ACADOS"
+    NONE = None
+
+
 class OdeSolver(Enum):
     """
     Integration methods.
@@ -34,6 +44,8 @@ class Instant(Enum):
     INTERMEDIATES = "intermediates"
     END = "end"
     ALL = "all"
+    DEFAULT = "default"
+    NONE = "none"
 
 
 class InterpolationType(Enum):
@@ -64,3 +76,14 @@ class PlotType(Enum):
     PLOT = 0
     INTEGRATED = 1
     STEP = 2
+
+
+class ControlType(Enum):
+    """
+    Type of controls.
+    CONSTANT: Constant value (step function).
+    LINEAL: Linear between two nodes and continuous at the node.
+    """
+
+    CONSTANT = 1
+    LINEAR_CONTINUOUS = 2

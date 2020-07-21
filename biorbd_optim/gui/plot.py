@@ -9,10 +9,10 @@ from itertools import accumulate
 from matplotlib import pyplot as plt, lines
 from casadi import Callback, nlpsol_out, nlpsol_n_out, Sparsity
 
-from .variable_optimization import Data
-from .mapping import Mapping
-from .enums import PlotType
-from .utils import check_version
+from ..misc.data import Data
+from ..misc.enums import PlotType, ControlType
+from ..misc.mapping import Mapping
+from ..misc.utils import check_version
 
 
 class CustomPlot:
@@ -73,7 +73,7 @@ class PlotOcp:
         self.all_figures = []
 
         self.automatically_organize = automatically_organize
-        self._organize_windows(len(self.ocp.nlp[0]["var_states"]) + len(self.ocp.nlp[0]["var_controls"]),)
+        self._organize_windows(len(self.ocp.nlp[0]["var_states"]) + len(self.ocp.nlp[0]["var_controls"]))
 
         self.plot_func = {}
         self.variable_sizes = []
@@ -293,6 +293,13 @@ class PlotOcp:
                 else:
                     control = np.concatenate((control, data_controls_per_phase[s]))
 
+            if nlp["control_type"] == ControlType.CONSTANT:
+                u_mod = 1
+            elif nlp["control_type"] == ControlType.LINEAR_CONTINUOUS:
+                u_mod = 2
+            else:
+                raise NotImplementedError(f"Plotting {nlp['control_type']} is not implemented yet")
+
             for key in self.variable_sizes[i]:
                 if self.plot_func[key][i].type == PlotType.INTEGRATED:
                     all_y = []
@@ -301,7 +308,7 @@ class PlotOcp:
                         y_tp.fill(np.nan)
                         y_tp[:, :] = self.plot_func[key][i].function(
                             state[:, step_size * idx : step_size * (idx + 1)],
-                            np.repeat(control[:, idx : idx + 1], step_size, axis=1),
+                            control[:, idx : idx + u_mod],
                             data_param_in_dyn,
                         )
                         all_y.append(y_tp)
@@ -378,7 +385,7 @@ class PlotOcp:
                     y_range = (1.25 * data_range) / 2
                     y_range = data_mean - y_range, data_mean + y_range
                     ax.set_ylim(y_range)
-                    ax.set_yticks(np.arange(y_range[0], y_range[1], step=data_range / 4,))
+                    ax.set_yticks(np.arange(y_range[0], y_range[1], step=data_range / 4))
 
         for p in self.plots_vertical_lines:
             p.set_ydata((0, 1))
