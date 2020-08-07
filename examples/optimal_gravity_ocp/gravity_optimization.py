@@ -2,16 +2,23 @@ import biorbd
 import numpy as np
 import ezc3d
 from scipy.io import loadmat
+import time
+from casadi import MX
 
 from biorbd_optim import (
     OptimalControlProgram,
-    Problem,
+    ObjectiveList,
+    Objective,
+    DynamicsTypeList,
+    DynamicsType,
+    BoundsList,
     Bounds,
+    InitialConditionsList,
     InitialConditions,
     ShowResult,
-    Objective,
     InterpolationType,
     Data,
+    ParameterList,
 )
 
 
@@ -36,48 +43,54 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
 
     # Add objective functions
     state_ref = np.concatenate((q_ref, qdot_ref))
-    objective_functions = (
-        {"type": Objective.Lagrange.TRACK_STATE, "weight": 1, "data_to_track": state_ref.T, "states_idx": range(n_q)},
-        {"type": Objective.Lagrange.TRACK_STATE, "weight": 0.01, "data_to_track": state_ref.T,
-         "states_idx": range(n_q, n_q + n_qdot)},
-        {"type": Objective.Lagrange.MINIMIZE_TORQUE, "weight": 1e-7}
-    )
+    objective_functions = ObjectiveList()
+    objective_functions.add(Objective.Lagrange.TRACK_STATE, weight=1, target=state_ref,
+         states_idx=range(n_q))
+    objective_functions.add(Objective.Lagrange.TRACK_STATE, weight=0.01, target=state_ref,
+         states_idx=range(n_q, n_q + n_qdot))
+    objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=1e-7)
 
     # Dynamics
-    problem_type = {"type": Problem.torque_driven}
+    dynamics = DynamicsTypeList()
+    dynamics.add(DynamicsType.TORQUE_DRIVEN)
 
     # Constraints
-    constraints = ()
+    # constraints = ConstraintList()
 
     # Path constraint
-    X_bounds = Bounds(min_bound=xmin, max_bound=xmax)
+    X_bounds = BoundsList()
+    X_bounds.add(Bounds(min_bound=xmin, max_bound=xmax))
 
     # Initial guess
-    X_init = InitialConditions(np.concatenate([q_ref, qdot_ref]), interpolation=InterpolationType.EACH_FRAME)
+    X_init = InitialConditionsList()
+    X_init.add(np.concatenate([q_ref, qdot_ref]), interpolation=InterpolationType.EACH_FRAME)
 
     # Define control path constraint
-    U_bounds = Bounds(min_bound=[torque_min] * n_tau, max_bound=[torque_max] * n_tau)
-    U_bounds.min[:6, :] = 0
-    U_bounds.max[:6, :] = 0
+    U_bounds = BoundsList()
+    U_bounds.add(Bounds(min_bound=[torque_min] * n_tau, max_bound=[torque_max] * n_tau))
+    U_bounds[0].min[:6, :] = 0
+    U_bounds[0].max[:6, :] = 0
 
-    U_init = InitialConditions(tau_init, interpolation=InterpolationType.EACH_FRAME)
+    U_init = InitialConditionsList()
+    U_init.add(tau_init, interpolation=InterpolationType.EACH_FRAME)
 
     # Define the parameter to optimize
     # Give the parameter some min and max bounds
+    parameters = ParameterList()
     bound_gravity = Bounds(min_bound=min_g, max_bound=max_g, interpolation=InterpolationType.CONSTANT)
     # and an initial condition
     initial_gravity_orientation = InitialConditions([0, 0])
-    parameters = {
-        "name": "gravity_angle",  # The name of the parameter
-        "function": rotating_gravity,  # The function that modifies the biorbd model
-        "bounds": bound_gravity,  # The bounds
-        "initial_guess": initial_gravity_orientation,  # The initial guess
-        "size": 2,  # The number of elements this particular parameter vector has
-    }
+    parameters.add(
+        parameter_name="gravity_angle",  # The name of the parameter
+        function=rotating_gravity,  # The function that modifies the biorbd model
+        bounds=bound_gravity,  # The bounds
+        initial_guess=initial_gravity_orientation,  # The initial guess
+        size=2,  # The number of elements this particular parameter vector has
+    )
 
     return OptimalControlProgram(
         biorbd_model,
-        problem_type,
+        dynamics,
         number_shooting_points,
         final_time,
         X_init,
@@ -85,9 +98,10 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
         X_bounds,
         U_bounds,
         objective_functions,
-        constraints,
+        # constraints,
         nb_integration_steps=4,
         parameters=parameters,
+        nb_threads=4,
     )
 
 
@@ -178,16 +192,26 @@ def x_bounds(biorbd_model):
 
 
 if __name__ == "__main__":
+    start = time.time()
     biorbd_model = biorbd.Model("DoCi.s2mMod")
 
+    biorbd_model.setGravity(biorbd.Vector3d(0, 0, -9.80639))
+
+    c3d = ezc3d.c3d('Do_822_contact_2.c3d')
     frames = range(3099, 3300)
-    number_shooting_points = 50
-    step_size = int((len(frames)-1)/number_shooting_points)
-    c3d = ezc3d.c3d('Do_822_contact_2.c3d');
+
+    number_shooting_points = 200
+    # Adjust number of shooting points
+    list_adjusted_number_shooting_points = []
+    for frame_num in range(1, (frames.stop - frames.start - 1) // frames.step + 1):
+        list_adjusted_number_shooting_points.append((frames.stop - frames.start - 1) // frame_num + 1)
+    diff_shooting_points = [abs(number_shooting_points - point) for point in list_adjusted_number_shooting_points]
+    step_size = diff_shooting_points.index(min(diff_shooting_points)) + 1
+    adjusted_number_shooting_points = ((frames.stop - frames.start - 1) // step_size + 1) - 1
+
     frequency = c3d['header']['points']['frame_rate']
     duration = len(frames) / frequency
 
-    from casadi import MX
     q = MX.sym("Q", biorbd_model.nbQ(), 1)
     qdot = MX.sym("Qdot", biorbd_model.nbQdot(), 1)
     qddot = MX.sym("Qddot", biorbd_model.nbQddot(), 1)
@@ -206,7 +230,7 @@ if __name__ == "__main__":
     xmin, xmax = x_bounds(biorbd_model)
 
     ocp = prepare_ocp(
-        biorbd_model=biorbd_model, final_time=duration, number_shooting_points=number_shooting_points,
+        biorbd_model=biorbd_model, final_time=duration, number_shooting_points=adjusted_number_shooting_points,
         q_ref=q_ref, qdot_ref=qdot_ref, tau_init=tau_ref,
         xmin=xmin, xmax=xmax,
         min_g=[0, -np.pi/16], max_g=[2*np.pi, np.pi/16],
@@ -216,7 +240,7 @@ if __name__ == "__main__":
     sol = ocp.solve(show_online_optim=False)
 
     # --- Save --- #
-    save_name = "test.bo"
+    save_name = "Do_822_contact_2_optimal_gravity_N" + str(adjusted_number_shooting_points) + ".bo"
     ocp.save(sol, save_name)
 
     # --- Load --- #
@@ -224,8 +248,11 @@ if __name__ == "__main__":
 
     # --- Get the results --- #
     states, controls, params = Data.get_data(ocp, sol, get_parameters=True)
-    length = params["gravity_angle"][0, 0]
-    print(length)
+    angle = params["gravity_angle"][0, 0]
+    print(angle)
+
+    stop = time.time()
+    print(stop - start)
 
     # --- Show results --- #
-    ShowResult(ocp, sol).animate(nb_frames=50)
+    ShowResult(ocp, sol).animate(nb_frames=adjusted_number_shooting_points)
