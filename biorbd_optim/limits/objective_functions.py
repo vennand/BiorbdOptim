@@ -250,6 +250,9 @@ class ObjectiveFunction:
         """
         val = val
         target = target if target is not None else None
+
+        # Ici changer les valeurs de val et de target à 0 si il y a des NaN dans target
+
         J = {"objective": penalty, "val": val, "target": target, "dt": dt}
 
         if nlp:

@@ -87,6 +87,10 @@ class PenaltyFunctionAbstract:
                 if target is not None:
                     target_tp = target[:, markers_idx, t[i]]
                     target_tp = target_tp[axis_to_track, :]
+
+                    index_of_nan, *_ = np.where(np.isnan(target_tp[0, :]))
+                    target_tp[:, index_of_nan] = 0
+                    val[:, index_of_nan] = 0
                 penalty.type.get_type().add_to_penalty(ocp, nlp, val, penalty, target=target_tp, **extra_param)
 
         @staticmethod

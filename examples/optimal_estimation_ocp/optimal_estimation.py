@@ -18,6 +18,7 @@ from biorbd_optim import (
     ShowResult,
     InterpolationType,
     Data,
+    Solver,
 )
 
 
@@ -33,7 +34,21 @@ def rotating_gravity(biorbd_model, value):
     biorbd_model.setGravity(gravity)
 
 
-def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_ref, tau_init, xmin, xmax):
+def refential_matrix():
+    angleX = 0.0480
+    angleY = -0.0657
+    angleZ = 1.5720
+
+    RotX = np.array(((1, 0, 0), (0, np.cos(angleX), -np.sin(angleX)), (0, np.sin(angleX), np.cos(angleX))))
+
+    RotY = np.array(((np.cos(angleY), 0, np.sin(angleY)), (0, 1, 0),(-np.sin(angleY), 0, np.cos(angleY))))
+
+    RotZ = np.array(((np.cos(angleZ), -np.sin(angleZ), 0), (np.sin(angleZ), np.cos(angleZ), 0), (0, 0, 1)))
+
+    return RotX.dot(RotY.dot(RotZ))
+
+
+def prepare_ocp(biorbd_model, final_time, number_shooting_points, markers_ref, q_init, qdot_init, tau_init, xmin, xmax):
     # --- Options --- #
     torque_min, torque_max = -100, 100
     n_q = biorbd_model.nbQ()
@@ -43,10 +58,7 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
     # Add objective functions
     state_ref = np.concatenate((q_ref, qdot_ref))
     objective_functions = ObjectiveList()
-    objective_functions.add(Objective.Lagrange.TRACK_STATE, weight=1, target=state_ref,
-         states_idx=range(n_q))
-    objective_functions.add(Objective.Lagrange.TRACK_STATE, weight=0.01, target=state_ref,
-         states_idx=range(n_q, n_q + n_qdot))
+    objective_functions.add(Objective.Lagrange.TRACK_MARKERS, weight=1, target=markers_ref)
     objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=1e-7)
 
     # Dynamics
@@ -62,7 +74,7 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
 
     # Initial guess
     X_init = InitialConditionsList()
-    X_init.add(np.concatenate([q_ref, qdot_ref]), interpolation=InterpolationType.EACH_FRAME)
+    X_init.add(np.concatenate([q_init, qdot_init]), interpolation=InterpolationType.EACH_FRAME)
 
     # Define control path constraint
     U_bounds = BoundsList()
@@ -183,9 +195,8 @@ if __name__ == "__main__":
 
     c3d = ezc3d.c3d('Do_822_contact_2.c3d')
     frames = range(3099, 3300)
-    marker = c3d['data']['points'][:, :95, frames.start:frames.stop] / 1000
 
-    number_shooting_points = 100
+    number_shooting_points = 50
     # Adjust number of shooting points
     list_adjusted_number_shooting_points = []
     for frame_num in range(1, (frames.stop - frames.start - 1) // frames.step + 1):
@@ -211,35 +222,35 @@ if __name__ == "__main__":
     qdot_ref = states_optimal_gravity['q_dot']
     tau_ref = controls_optimal_gravity['tau'][:, :-1]
 
-    gravity = biorbd_model.getGravity()
-    gravity.applyRT(
-        biorbd.RotoTrans.combineRotAndTrans(biorbd.Rotation.fromEulerAngles(angle.squeeze(), 'zx'), biorbd.Vector3d()))
-    biorbd_model.setGravity(gravity)
-
-    # q_ref = loadmat('Do_822_contact_2_MOD200.00_GenderF_DoCig_Q.mat')['Q2'][:, 3099:3300:step_size]
-    # qdot_ref = loadmat('Do_822_contact_2_MOD200.00_GenderF_DoCig_V.mat')['V2'][:, 3099:3300:step_size]
-    # qddot_ref = loadmat('Do_822_contact_2_MOD200.00_GenderF_DoCig_A.mat')['A2'][:, 3099:3300:step_size]
-    #
-    # tau_ref = id(q_ref, qdot_ref, qddot_ref)
-    # tau_ref = tau_ref[:, :-1]
-
-    # n_q = biorbd_model.nbQ()
-    # n_qdot = biorbd_model.nbQdot()
+    rotating_gravity(biorbd_model, angle.squeeze())
 
     xmin, xmax = x_bounds(biorbd_model)
 
+    markers = c3d['data']['points'][:3, :95, frames.start:frames.stop:step_size] / 1000
+    c3d_labels = c3d['parameters']['POINT']['LABELS']['value'][:95]
+    model_labels = [label.to_string() for label in biorbd_model.markerNames()]
+    labels_index = [np.where(np.isin(c3d_labels, label))[0][0] for label in model_labels]
+    markers_reordered = np.zeros(markers.shape)
+    for index, label_index in enumerate(labels_index):
+        markers_reordered[:, index, :] = markers[:, label_index, :]
+
+    markers_rotated = np.zeros(markers.shape)
+    for frame in range(markers.shape[2]):
+        markers_rotated[..., frame] = refential_matrix().T.dot(markers_reordered[..., frame])
+
     ocp = prepare_ocp(
         biorbd_model=biorbd_model, final_time=duration, number_shooting_points=number_shooting_points,
-        q_ref=q_ref, qdot_ref=qdot_ref, tau_init=tau_ref,
+        markers_ref=markers_rotated, q_init=q_ref, qdot_init=qdot_ref, tau_init=tau_ref,
         xmin=xmin, xmax=xmax,
     )
 
     # --- Solve the program --- #
-    sol = ocp.solve(show_online_optim=False)
+    options = {"max_iter": 3000, "tol": 1e-6, "constr_viol_tol": 1e-3}
+    sol = ocp.solve(solver=Solver.IPOPT, solver_options=options, show_online_optim=False)
 
     # --- Save --- #
     save_name = "Do_822_contact_2_optimal_estimation_N" + str(adjusted_number_shooting_points) + ".bo"
-    ocp.save(sol, save_name)
+    # ocp.save(sol, save_name)
 
     # --- Load --- #
     # ocp, sol = OptimalControlProgram.load(save_name)
@@ -251,4 +262,4 @@ if __name__ == "__main__":
     print(stop - start)
 
     # --- Show results --- #
-    ShowResult(ocp, sol).animate(nb_frames=50)
+    ShowResult(ocp, sol).animate(nb_frames=adjusted_number_shooting_points)

@@ -200,7 +200,7 @@ if __name__ == "__main__":
     c3d = ezc3d.c3d('Do_822_contact_2.c3d')
     frames = range(3099, 3300)
 
-    number_shooting_points = 200
+    number_shooting_points = 50
     # Adjust number of shooting points
     list_adjusted_number_shooting_points = []
     for frame_num in range(1, (frames.stop - frames.start - 1) // frames.step + 1):
@@ -217,15 +217,12 @@ if __name__ == "__main__":
     qddot = MX.sym("Qddot", biorbd_model.nbQddot(), 1)
     id = biorbd.to_casadi_func("id", biorbd_model.InverseDynamics, q, qdot, qddot)
 
-    q_ref = loadmat('Do_822_contact_2_MOD200.00_GenderF_DoCig_Q.mat')['Q2'][:, 3099:3300:step_size]
-    qdot_ref = loadmat('Do_822_contact_2_MOD200.00_GenderF_DoCig_V.mat')['V2'][:, 3099:3300:step_size]
-    qddot_ref = loadmat('Do_822_contact_2_MOD200.00_GenderF_DoCig_A.mat')['A2'][:, 3099:3300:step_size]
+    q_ref = loadmat('Do_822_contact_2_MOD200.00_GenderF_DoCig_Q.mat')['Q2'][:, frames.start:frames.stop:step_size]
+    qdot_ref = loadmat('Do_822_contact_2_MOD200.00_GenderF_DoCig_V.mat')['V2'][:, frames.start:frames.stop:step_size]
+    qddot_ref = loadmat('Do_822_contact_2_MOD200.00_GenderF_DoCig_A.mat')['A2'][:, frames.start:frames.stop:step_size]
 
     tau_ref = id(q_ref, qdot_ref, qddot_ref)
     tau_ref = tau_ref[:, :-1]
-
-    # n_q = biorbd_model.nbQ()
-    # n_qdot = biorbd_model.nbQdot()
 
     xmin, xmax = x_bounds(biorbd_model)
 
@@ -248,7 +245,7 @@ if __name__ == "__main__":
 
     # --- Get the results --- #
     states, controls, params = Data.get_data(ocp, sol, get_parameters=True)
-    angle = params["gravity_angle"][0, 0]
+    angle = params["gravity_angle"]/np.pi*180
     print(angle)
 
     stop = time.time()
