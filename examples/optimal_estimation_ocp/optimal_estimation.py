@@ -250,7 +250,7 @@ if __name__ == "__main__":
 
     # --- Save --- #
     save_name = "Do_822_contact_2_optimal_estimation_N" + str(adjusted_number_shooting_points) + ".bo"
-    # ocp.save(sol, save_name)
+    ocp.save(sol, save_name)
 
     # --- Load --- #
     # ocp, sol = OptimalControlProgram.load(save_name)
