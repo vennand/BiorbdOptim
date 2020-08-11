@@ -4,6 +4,7 @@ import ezc3d
 from scipy.io import loadmat
 import time
 from casadi import MX
+import pickle
 
 from biorbd_optim import (
     OptimalControlProgram,
@@ -217,12 +218,12 @@ if __name__ == "__main__":
     ocp_optimal_gravity, sol_optimal_gravity = OptimalControlProgram.load(optimal_gravity_filename)
     states_optimal_gravity, controls_optimal_gravity, params_optimal_gravity = Data.get_data(ocp_optimal_gravity, sol_optimal_gravity, get_parameters=True)
 
-    angle = params_optimal_gravity["gravity_angle"]
+    angle = params_optimal_gravity["gravity_angle"].squeeze()
     q_ref = states_optimal_gravity['q']
     qdot_ref = states_optimal_gravity['q_dot']
     tau_ref = controls_optimal_gravity['tau'][:, :-1]
 
-    rotating_gravity(biorbd_model, angle.squeeze())
+    rotating_gravity(biorbd_model, angle)
 
     xmin, xmax = x_bounds(biorbd_model)
 
@@ -249,11 +250,14 @@ if __name__ == "__main__":
     sol = ocp.solve(solver=Solver.IPOPT, solver_options=options, show_online_optim=False)
 
     # --- Save --- #
-    save_name = "Do_822_contact_2_optimal_estimation_N" + str(adjusted_number_shooting_points) + ".bo"
-    ocp.save(sol, save_name)
+    save_name = "Do_822_contact_2_optimal_estimation_N" + str(adjusted_number_shooting_points)
+    save_ocp_sol_name = save_name + ".bo"
+    ocp.save(sol, save_ocp_sol_name)
 
-    # --- Load --- #
-    # ocp, sol = OptimalControlProgram.load(save_name)
+    save_variables_name = save_name + ".pkl"
+    with open(save_variables_name, 'wb') as handle:
+        pickle.dump({'mocap': markers_rotated, 'frames': frames, 'step_size': step_size},
+                    handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     # --- Get the results --- #
     states, controls = Data.get_data(ocp, sol)
@@ -262,4 +266,4 @@ if __name__ == "__main__":
     print(stop - start)
 
     # --- Show results --- #
-    ShowResult(ocp, sol).animate(nb_frames=adjusted_number_shooting_points)
+    # ShowResult(ocp, sol).animate(nb_frames=adjusted_number_shooting_points)
