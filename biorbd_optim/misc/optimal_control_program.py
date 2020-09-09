@@ -61,6 +61,7 @@ class OptimalControlProgram:
         state_transitions=StateTransitionList(),
         nb_threads=1,
         use_SX=False,
+        continuity=True,
     ):
         """
         Prepare CasADi to solve a problem, defines some parameters, dynamic problem and ode solver.
@@ -126,6 +127,7 @@ class OptimalControlProgram:
             "state_transitions": state_transitions,
             "nb_threads": nb_threads,
             "use_SX": use_SX,
+            "continuity": continuity,
         }
 
         # Check integrity of arguments
@@ -331,7 +333,8 @@ class OptimalControlProgram:
         self.state_transitions = StateTransitionFunctions.prepare_state_transitions(self, state_transitions)
 
         # Inner- and inter-phase continuity
-        ContinuityFunctions.continuity(self)
+        if continuity:
+            ContinuityFunctions.continuity(self)
 
         # Prepare constraints
         self.update_constraints(constraints)

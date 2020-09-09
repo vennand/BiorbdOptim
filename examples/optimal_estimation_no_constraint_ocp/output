@@ -1,0 +1,100 @@
+/home/andre/anaconda3/envs/BiorbdOptim/bin/python /home/andre/BiorbdOptim/examples/optimal_gravity_ocp/gravity_optimization.py
+
+******************************************************************************
+This program contains Ipopt, a library for large-scale nonlinear optimization.
+ Ipopt is released as open source code under the Eclipse Public License (EPL).
+         For more information visit http://projects.coin-or.org/Ipopt
+******************************************************************************
+
+This is Ipopt version 3.13.2, running with linear solver mumps.
+NOTE: Other linear solvers might be more efficient (see Ipopt documentation).
+
+Number of nonzeros in equality constraint Jacobian...:   504150
+Number of nonzeros in inequality constraint Jacobian.:        0
+Number of nonzeros in Lagrangian Hessian.............:   357087
+
+Total number of variables............................:     6086
+                     variables with only lower bounds:        0
+                variables with lower and upper bounds:     6086
+                     variables with only upper bounds:        0
+Total number of equality constraints.................:     4200
+Total number of inequality constraints...............:        0
+        inequality constraints with only lower bounds:        0
+   inequality constraints with lower and upper bounds:        0
+        inequality constraints with only upper bounds:        0
+
+iter    objective    inf_pr   inf_du lg(mu)  ||d||  lg(rg) alpha_du alpha_pr  ls
+   0  2.3314033e-03 1.74e+01 1.61e-04  -1.0 0.00e+00    -  0.00e+00 0.00e+00   0
+   1  4.2664257e+00 1.72e+01 3.16e+01  -1.0 1.79e+01    -  4.81e-01 1.00e+00h  1
+   2  4.0269473e+00 9.70e+00 3.74e+02  -1.0 1.48e+01   0.0 3.10e-01 4.47e-01h  1
+   3  4.0311299e+00 7.65e+00 4.14e+02  -1.0 8.51e+00   0.4 3.43e-01 2.09e-01h  1
+   4  4.1849945e+00 4.15e+00 7.78e+01  -1.0 7.79e+00  -0.1 6.42e-01 4.95e-01h  1
+   5  4.4661195e+00 2.30e+00 5.33e+02  -1.0 4.37e+00   0.4 3.70e-01 6.94e-01h  1
+   6  4.7994191e+00 3.24e+00 3.81e+02  -1.0 8.10e+00  -0.1 4.10e-01 1.00e+00h  1
+   7  4.7536130e+00 7.64e-01 9.78e+01  -1.0 2.65e+00   0.3 8.51e-01 1.00e+00h  1
+   8  4.7728792e+00 7.73e-02 2.84e+00  -1.0 2.93e-01  -0.2 9.90e-01 1.00e+00h  1
+   9  4.8741265e+00 4.40e-01 2.67e-01  -1.0 4.36e-01  -0.6 1.00e+00 1.00e+00f  1
+iter    objective    inf_pr   inf_du lg(mu)  ||d||  lg(rg) alpha_du alpha_pr  ls
+  10  4.8321076e+00 4.37e-02 9.39e-02  -1.7 1.43e-01  -1.1 1.00e+00 1.00e+00h  1
+  11  4.6041727e+00 4.62e-01 7.24e-03  -2.5 2.78e-01  -1.6 1.00e+00 1.00e+00h  1
+  12  4.2367125e+00 6.61e-01 6.78e-03  -2.5 7.82e-01  -2.1 1.00e+00 1.00e+00h  1
+  13  3.6201564e+00 3.44e-01 7.57e-03  -2.5 1.98e+00  -2.5 1.00e+00 1.00e+00h  1
+  14  3.4323653e+00 4.36e-02 2.15e-02  -2.5 6.13e-01  -2.1 1.00e+00 1.00e+00h  1
+  15  3.3670153e+00 5.13e-03 4.75e-03  -2.5 2.31e-01  -1.7 1.00e+00 1.00e+00h  1
+  16  3.1687865e+00 7.43e-02 4.66e-03  -3.8 6.77e-01  -2.2 9.94e-01 1.00e+00h  1
+  17  2.7394899e+00 1.34e-01 1.38e-02  -3.8 1.71e+00  -2.6 1.00e+00 1.00e+00h  1
+  18  2.1460180e+00 2.25e-01 1.57e-02  -3.8 4.10e+00  -3.1 1.00e+00 7.64e-01h  1
+  19  1.2836535e+00 6.74e-01 5.83e-02  -3.8 8.60e+00  -3.6 1.00e+00 8.44e-01h  1
+iter    objective    inf_pr   inf_du lg(mu)  ||d||  lg(rg) alpha_du alpha_pr  ls
+  20  5.6338490e-01 1.97e+00 9.14e-02  -3.8 1.64e+01  -4.1 6.81e-01 1.00e+00h  1
+  21  2.4891367e-01 1.89e+00 3.63e-02  -3.8 1.15e+01  -4.5 7.70e-01 1.00e+00h  1
+  22  1.2030447e-01 5.15e-01 1.29e-02  -3.8 1.32e+01  -5.0 9.91e-01 1.00e+00h  1
+  23  4.7838503e-02 2.19e+00 1.68e-02  -3.8 1.19e+02    -  3.69e-01 8.09e-01h  1
+  24  4.1773299e-02 4.38e-01 6.73e-03  -3.8 7.26e+01    -  9.25e-01 1.00e+00h  1
+  25  4.1957196e-02 4.53e-02 2.23e-04  -3.8 7.84e+01    -  1.00e+00 1.00e+00h  1
+  26  4.1855262e-02 6.45e-03 1.75e-05  -3.8 2.57e+01    -  1.00e+00 1.00e+00h  1
+  27  4.1830046e-02 4.98e-04 1.38e-06  -3.8 7.40e+00    -  1.00e+00 1.00e+00h  1
+  28  3.8959812e-02 1.27e-01 2.51e-04  -5.7 1.80e+01    -  8.96e-01 9.59e-01h  1
+  29  3.8345443e-02 4.23e-02 4.32e-04  -5.7 1.34e+01    -  9.94e-01 9.03e-01h  1
+iter    objective    inf_pr   inf_du lg(mu)  ||d||  lg(rg) alpha_du alpha_pr  ls
+  30  3.8194268e-02 4.65e-03 9.46e-06  -5.7 5.83e+00    -  1.00e+00 1.00e+00h  1
+  31  3.8172592e-02 2.01e-04 7.80e-07  -5.7 1.78e+00    -  1.00e+00 1.00e+00h  1
+  32  3.8170961e-02 3.11e-06 1.19e-08  -5.7 3.32e-01    -  1.00e+00 1.00e+00h  1
+  33  3.8142823e-02 3.30e-04 1.08e-05  -7.0 1.92e+00    -  9.79e-01 9.64e-01h  1
+  34  3.8139463e-02 2.65e-05 9.41e-08  -7.0 9.96e-01    -  1.00e+00 1.00e+00h  1
+  35  3.8139236e-02 1.36e-06 5.47e-09  -7.0 3.38e-01    -  1.00e+00 1.00e+00h  1
+  36  3.8139225e-02 2.66e-08 1.10e-10  -7.0 5.17e-02    -  1.00e+00 1.00e+00h  1
+
+Number of Iterations....: 36
+
+                                   (scaled)                 (unscaled)
+Objective...............:   3.8139225015702903e-02    3.8139225015702903e-02
+Dual infeasibility......:   1.1006864697826476e-10    1.1006864697826476e-10
+Constraint violation....:   2.6629061622429617e-08    2.6629061622429617e-08
+Complementarity.........:   9.1152444000512803e-08    9.1152444000512803e-08
+Overall NLP error.......:   9.1152444000512803e-08    9.1152444000512803e-08
+
+
+Number of objective function evaluations             = 37
+Number of objective gradient evaluations             = 37
+Number of equality constraint evaluations            = 37
+Number of inequality constraint evaluations          = 0
+Number of equality constraint Jacobian evaluations   = 37
+Number of inequality constraint Jacobian evaluations = 0
+Number of Lagrangian Hessian evaluations             = 36
+Total CPU secs in IPOPT (w/o function evaluations)   =     25.655
+Total CPU secs in NLP function evaluations           =   2335.204
+
+EXIT: Optimal Solution Found.
+      nlpsol  :   t_proc      (avg)   t_wall      (avg)    n_eval
+       nlp_f  |  14.47ms (391.22us)   2.43ms ( 65.65us)        37
+       nlp_g  |  13.33 s (360.22ms)   2.25 s ( 60.74ms)        37
+  nlp_grad_f  |  20.00ms (526.29us)   3.56ms ( 93.68us)        38
+  nlp_hess_l  |   1.82ks ( 50.57 s)   1.83ks ( 50.76 s)        36
+   nlp_jac_g  | 530.80 s ( 13.97 s) 528.09 s ( 13.90 s)        38
+       total  |   2.39ks (  2.39ks)   2.36ks (  2.36ks)         1
+0.2782838703284476
+Version for pyomeca could not be compared...
+
+Process finished with exit code 0
+
