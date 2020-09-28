@@ -1,105 +1,32 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
-
-# C extensions
-*.so
-
-# Distribution / packaging
-.Python
-env/
+examples/optimal_estimation_ocp/Angular_momentum_N50.png
+examples/optimal_estimation_ocp/Average marker and dynamic error.ods
+examples/optimal_estimation_ocp/Average marker error
+examples/optimal_estimation_ocp/Do_822_contact_2_optimal_estimation_N100.pkl
+examples/optimal_estimation_ocp/Do_822_contact_2_optimal_estimation_N200.pkl
+examples/optimal_estimation_ocp/Do_822_contact_2_optimal_estimation_N50.pkl
+examples/optimal_estimation_ocp/Do_822_contact_2_optimal_estimation_N50_variable_weights.pkl
+examples/optimal_estimation_ocp/Linear_momentum_N50.png
+examples/optimal_estimation_ocp/Thorax_control_N50_DoF7.png
+examples/optimal_estimation_ocp/Thorax_control_N50_DoF8.png
+examples/optimal_estimation_ocp/Thorax_control_N50_DoF9.png
+examples/optimal_gravity_ocp/Solutions/
+examples/optimal_gravity_ocp/Test to find free fall/
+examples/optimal_gravity_ocp/output
+.idea/
+biorbd_optim/__pycache__/
+biorbd_optim/dynamics/__pycache__/
+biorbd_optim/gui/__pycache__/
+biorbd_optim/interfaces/__pycache__/
+biorbd_optim/limits/__pycache__/
+biorbd_optim/misc/__pycache__/
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*,cover
-.hypothesis/
-.pytest_cache
-
-# Translations
-*.mo
-*.pot
-
-# Django stuff:
-*.log
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-target/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# Environments
-.env
-.venv
+examples/one_marker_optimal_gravity_ocp/ocp_sol.bo
+examples/optimal_estimation_no_constraint_ocp/Solutions/
+examples/optimal_estimation_ocp/Do_822_contact_2_optimal_estimation_N100.bo
+examples/optimal_estimation_ocp/Do_822_contact_2_optimal_estimation_N200.bo
+examples/optimal_estimation_ocp/Do_822_contact_2_optimal_estimation_N50.bo
+examples/optimal_estimation_ocp/Do_822_contact_2_optimal_estimation_N50_variable_weights.bo
+examples/optimal_estimation_ocp/Solutions/
+examples/optimal_gravity_ocp/__pycache__/
 venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
-
-# pycharm
-.idea
-
-# Personnal stuff
-Misc/
-
-# Remove symbolic links to biorbd_optim in examples and tests folder
-examples/*/biorbd_optim
-examples/biorbd_optim
-
-# Remove other development artifacts
-examples/sandbox
-*.npy
-*.bo
-*.bob
-*.ogv
-
-# Remove ACADOS compilation folder
-c_generated_code
-*.json

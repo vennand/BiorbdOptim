@@ -5,6 +5,7 @@ from scipy.io import loadmat
 from casadi import MX, Function
 import pickle
 import os
+from load_data_filename import load_data_filename
 
 from biorbd_optim import (
     OptimalControlProgram,
@@ -52,52 +53,27 @@ if __name__ == "__main__":
     # subject = 'BeLa'
     # subject = 'GuSe'
     subject = 'SaMi'
-    number_shooting_points = 320
-    trial = '821_822_2'
+    number_shooting_points = 100
+    trial = '821_seul_5'
 
-    if subject == 'DoCi':
-        if trial == '822':
-            c3d_name = 'Do_822_contact_2.c3d'
-        elif trial == '44_1':
-            c3d_name = 'Do_44_mvtPrep_1.c3d'
-        elif trial == '44_2':
-            c3d_name = 'Do_44_mvtPrep_2.c3d'
-        elif trial == '44_3':
-            c3d_name = 'Do_44_mvtPrep_3.c3d'
-    elif subject == 'JeCh':
-        c3d_name = 'Je_833_1.c3d'
-    elif subject == 'BeLa':
-        if trial == '44_1':
-            c3d_name = 'Ben_44_mvtPrep_1.c3d'
-        elif trial == '44_2':
-            c3d_name = 'Ben_44_mvtPrep_2.c3d'
-        elif trial == '44_3':
-            c3d_name = 'Ben_44_mvtPrep_3.c3d'
-    elif subject == 'GuSe':
-        if trial == '44_2':
-            c3d_name = 'Gui_44_mvt_Prep_2.c3d'
-        elif trial == '44_3':
-            c3d_name = 'Gui_44_mvt_Prep_3.c3d'
-        elif trial == '44_4':
-            c3d_name = 'Gui_44_mvtPrep_4.c3d'
-    elif subject == 'SaMi':
-        model_name = 'SaMi.s2mMod'
-        if trial == '821_822_2':
-            c3d_name = 'Sa_821_822_2.c3d'
-        elif trial == '821_822_3':
-            c3d_name = 'Sa_821_822_3.c3d'
-        elif trial == '821_822_4':
-            c3d_name = 'Sa_821_822_4.c3d'
-    else:
-        raise Exception(subject + ' is not a valid subject')
+    data_filename = load_data_filename(subject, trial)
+    c3d_name = data_filename['c3d']
+    frames = data_filename['frames']
 
+    # --- Adjust number of shooting points --- #
+    list_adjusted_number_shooting_points = []
+    for frame_num in range(1, (frames.stop - frames.start - 1) // frames.step + 1):
+        list_adjusted_number_shooting_points.append((frames.stop - frames.start - 1) // frame_num + 1)
+    diff_shooting_points = [abs(number_shooting_points - point) for point in list_adjusted_number_shooting_points]
+    step_size = diff_shooting_points.index(min(diff_shooting_points)) + 1
+    adjusted_number_shooting_points = ((frames.stop - frames.start - 1) // step_size + 1) - 1
 
     # --- Load --- #
     # load_name = "Do_822_contact_2_optimal_gravity_N" + str(number_shooting_points)
     # load_ocp_sol_name = load_name + ".bo"
     load_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
-    load_name = load_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(number_shooting_points) + '_rotated_model' + ".bo"
-    ocp, sol = OptimalControlProgram.load(load_name)
+    load_name = load_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF'
+    ocp, sol = OptimalControlProgram.load(load_name + '.bo')
 
     # --- Get the results --- #
     states, controls, params = Data.get_data(ocp, sol, get_parameters=True)
@@ -105,7 +81,10 @@ if __name__ == "__main__":
     print('Number of shooting points: ', number_shooting_points)
     print('Gravity rotation: ', angle)
 
-    save_variables_name = load_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(number_shooting_points) + '_rotated_model' + ".pkl"
+    gravity = biorbd.to_casadi_func("test", ocp.nlp[0]['model'].getGravity)
+    print('Gravity: ', gravity())
+
+    save_variables_name = load_name + ".pkl"
     with open(save_variables_name, 'wb') as handle:
         pickle.dump({'states': states, 'controls': controls, 'params': params},
                     handle, protocol=3)
@@ -127,4 +106,4 @@ if __name__ == "__main__":
     # momentum = am(states['q'], states['q_dot'], qddot)
 
     # --- Show results --- #
-    ShowResult(ocp, sol).animate(nb_frames=number_shooting_points)
+    ShowResult(ocp, sol).animate(nb_frames=adjusted_number_shooting_points)

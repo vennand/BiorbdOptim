@@ -2,10 +2,9 @@ import biorbd
 import numpy as np
 import ezc3d
 from scipy.io import loadmat
-import pickle
 import time
 from casadi import MX, Function
-import os
+import os, sys
 import warnings
 from load_data_filename import load_data_filename
 from x_bounds import x_bounds
@@ -62,9 +61,9 @@ def inverse_dynamics(biorbd_model, q_ref, qd_ref, qdd_ref):
 
 
 def check_Kalman(q_ref):
-    segments_with_pi_limits = [15, 17, 18, 24, 26, 27, 31, 34, 37, 40]
-    bool = np.zeros(q_ref.shape)
-    for (i, j), q in np.ndenumerate(q_ref[6:, :]):
+    segments_with_pi_limits = [15, 17, 18, 24, 26, 27]#, 31, 34, 37, 40]
+    bool = np.zeros(q_ref[:30, :].shape)
+    for (i, j), q in np.ndenumerate(q_ref[6:30, :]):
         if i+6+1 in segments_with_pi_limits:
             bool[i+6, j] = ((q / np.pi).astype(int) != 0)
         else:
@@ -72,7 +71,7 @@ def check_Kalman(q_ref):
     states_idx_bool = bool.any(axis=1)
 
     states_idx_range_list = []
-    start_index = 0
+    start_index = 6
     broken_dofs = []
     for idx, bool_idx in enumerate(states_idx_bool):
         if bool_idx:
@@ -86,21 +85,18 @@ def check_Kalman(q_ref):
     return states_idx_range_list, broken_dofs
 
 
-def correct_Kalman(q_ref, qdot_ref, qddot_ref, q_ref_matlab, qdot_ref_matlab, qddot_ref_matlab):
-    _, broken_dofs = check_Kalman(q_ref)
-    _, broken_dofs_matlab = check_Kalman(q_ref_matlab)
-
-    q_ref_corrected = q_ref_matlab
-    qdot_ref_corrected = qdot_ref_matlab
-    qddot_ref_corrected = qddot_ref_matlab
-
-    for dof in broken_dofs_matlab:
-        if dof not in broken_dofs:
-            q_ref_corrected[dof, :] = q_ref[dof, :]
-            qdot_ref_corrected[dof, :] = qdot_ref[dof, :]
-            qddot_ref_corrected[dof, :] = qddot_ref[dof, :]
-
-    return q_ref_corrected, qdot_ref_corrected, qddot_ref_corrected
+# def correct_Kalman(q_ref, qdot_ref, qddot_ref, frequency):
+#     # segments_with_pi_limits = [15, 17, 24, 26, 18, 27, 31, 37, 34, 40]
+#     # for (i, j), q in np.ndenumerate(q_ref[6:, :]):
+#     #     if i + 6 + 1 in segments_with_pi_limits:
+#     #         q_ref[i+6, j] = q - ((q / np.pi).astype(int) * np.pi)
+#     #     else:
+#     #         q_ref[i+6, j] = q - ((q / (np.pi / 2)).astype(int) * (np.pi / 2))
+#     q_ref[6:, :] = q_ref[6:, :] - ((q_ref[6:, :] / (2*np.pi)).astype(int) * (2*np.pi))
+#     # qdot_ref[6:, :-1] = (q_ref[6:, 1:] - q_ref[6:, :-1]) * frequency
+#     # qddot_ref[6:, :-1] = (qdot_ref[6:, 1:] - qdot_ref[6:, :-1]) * frequency
+#
+#     return q_ref, qdot_ref, qddot_ref
 
 
 def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_ref, tau_init, xmin, xmax, min_g, max_g, markers_ref=None, markers_idx_ref=None, states_idx_ref=None):
@@ -143,22 +139,30 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
     # Path constraint
     X_bounds = BoundsList()
     X_bounds.add(Bounds(min_bound=xmin, max_bound=xmax))
+    # for idx_q_fix, q_fix in enumerate(q_ref[:6, 0]):
+    #     X_bounds[0].min[idx_q_fix, :] = q_fix
+    #     X_bounds[0].max[idx_q_fix, :] = q_fix
+    X_bounds[0].min[:6, :] = 0
+    X_bounds[0].max[:6, :] = 0
+    X_bounds[0].min[30:n_q, :] = 0
+    X_bounds[0].max[30:n_q, :] = 0
+    X_bounds[0].min[n_q:n_q+6, :] = 0
+    X_bounds[0].max[n_q:n_q+6, :] = 0
+    X_bounds[0].min[n_q+30:n_q+n_q, :] = 0
+    X_bounds[0].max[n_q+30:n_q+n_q, :] = 0
 
 
     # Initial guess
     X_init = InitialConditionsList()
-    # q_ref = np.zeros(q_ref.shape)
-    # qdot_ref = np.zeros(qdot_ref.shape)
     X_init.add(np.concatenate([q_ref, qdot_ref]), interpolation=InterpolationType.EACH_FRAME)
 
     # Define control path constraint
     U_bounds = BoundsList()
     U_bounds.add(Bounds(min_bound=[torque_min] * n_tau, max_bound=[torque_max] * n_tau))
-    U_bounds[0].min[:6, :] = 0
-    U_bounds[0].max[:6, :] = 0
+    # U_bounds[0].min[:6, :] = 0
+    # U_bounds[0].max[:6, :] = 0
 
     U_init = InitialConditionsList()
-    # tau_init = np.zeros(tau_init.shape)
     U_init.add(tau_init, interpolation=InterpolationType.EACH_FRAME)
 
     # Define the parameter to optimize
@@ -187,7 +191,7 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
         objective_functions,
         # constraints,
         nb_integration_steps=4,
-        parameters=parameters,
+        # parameters=parameters,
         nb_threads=4,
     )
 
@@ -199,8 +203,8 @@ if __name__ == "__main__":
     # subject = 'BeLa'
     # subject = 'GuSe'
     subject = 'SaMi'
-    number_shooting_points = 100
-    trial = '821_seul_3'
+    number_shooting_points = 5000
+    trial = 'bras_volant_1'
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
     model_path = data_path + 'Model/'
@@ -217,20 +221,12 @@ if __name__ == "__main__":
 
     biorbd_model = biorbd.Model(model_path + model_name)
     c3d = ezc3d.c3d(c3d_path + c3d_name)
+    q_ref = loadmat(kalman_path + q_name)['Q2']
+    qdot_ref = loadmat(kalman_path + qd_name)['V2']
+    qddot_ref = loadmat(kalman_path + qdd_name)['A2']
 
-    q_ref_matlab = loadmat(kalman_path + q_name)['Q2']
-    qdot_ref_matlab = loadmat(kalman_path + qd_name)['V2']
-    qddot_ref_matlab = loadmat(kalman_path + qdd_name)['A2']
-
-    load_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
-    load_variables_name = load_path + subject + '/Kalman/' + os.path.splitext(c3d_name)[0] + ".pkl"
-    with open(load_variables_name, 'rb') as handle:
-        kalman_states = pickle.load(handle)
-    q_ref = kalman_states['q']
-    qdot_ref = kalman_states['qd']
-    qddot_ref = kalman_states['qdd']
-
-    biorbd_model.setGravity(biorbd.Vector3d(0, 0, -9.80639))
+    # biorbd_model.setGravity(biorbd.Vector3d(0, 0, -9.80639))
+    biorbd_model.setGravity(biorbd.Vector3d(0, 0, 0))
 
     # --- Adjust number of shooting points --- #
     list_adjusted_number_shooting_points = []
@@ -243,24 +239,18 @@ if __name__ == "__main__":
     frequency = c3d['header']['points']['frame_rate']
     duration = len(frames) / frequency
 
-
     # --- Calculate Kalman controls --- #
-    q_ref_matlab = q_ref_matlab[:, frames.start:frames.stop:step_size]
-    qdot_ref_matlab = qdot_ref_matlab[:, frames.start:frames.stop:step_size]
-    qddot_ref_matlab = qddot_ref_matlab[:, frames.start:frames.stop:step_size]
-
-    q_ref = q_ref[:, ::step_size]
-    qdot_ref = qdot_ref[:, ::step_size]
-    qddot_ref = qddot_ref[:, ::step_size]
-
-    q_ref, qdot_ref, qddot_ref = correct_Kalman(q_ref, qdot_ref, qddot_ref, q_ref_matlab, qdot_ref_matlab, qddot_ref_matlab)
-
+    q_ref = q_ref[:, frames.start:frames.stop:step_size]
+    qdot_ref = qdot_ref[:, frames.start:frames.stop:step_size]
+    qddot_ref = qddot_ref[:, frames.start:frames.stop:step_size]
     tau_ref = inverse_dynamics(biorbd_model, q_ref, qdot_ref, qddot_ref)
 
+    # if check_Kalman(q_ref):
+    #     warnings.warn('Corrected abnormal Kalman states')
+    #     q_ref, qdot_ref, qddot_ref = correct_Kalman(q_ref, qdot_ref, qddot_ref, frequency)
     states_idx_range_list, broken_dofs = check_Kalman(q_ref)
     if broken_dofs is not None:
         print('Abnormal Kalman states at DoFs: ', broken_dofs)
-
 
     # load_name = '/home/andre/BiorbdOptim/examples/optimal_estimation_no_constraint_ocp/Solutions/DoCi/Do_822_contact_2.bo'
     # load_name = '/home/andre/BiorbdOptim/examples/optimal_estimation_no_constraint_ocp/Solutions/DoCi/Do_822_contact_2_not_rotated.bo'
@@ -275,31 +265,10 @@ if __name__ == "__main__":
     markers = c3d['data']['points'][:3, :95, frames.start:frames.stop:step_size] / 1000
     c3d_labels = c3d['parameters']['POINT']['LABELS']['value'][:95]
     model_labels = [label.to_string() for label in biorbd_model.markerNames()]
-    # labels_index = [index_c3d for label in model_labels for index_c3d, c3d_label in enumerate(c3d_labels) if label in c3d_label]
-
-    ### --- Test --- ###
-    labels_index = []
-    missing_markers_index = []
-    for index_model, model_label in enumerate(model_labels):
-        missing_markers_bool = True
-        for index_c3d, c3d_label in enumerate(c3d_labels):
-            if model_label in c3d_label:
-                labels_index.append(index_c3d)
-                missing_markers_bool = False
-        if missing_markers_bool:
-            labels_index.append(index_model)
-            missing_markers_index.append(index_model)
-    ### --- Test --- ###
-
-    # markers_reordered = np.zeros((3, len(labels_index), markers.shape[2]))
-    # for index, label_index in enumerate(labels_index):
-    #     markers_reordered[:, index, :] = markers[:, label_index, :]
-    markers_reordered = np.zeros((3, markers.shape[1], markers.shape[2]))
+    labels_index = [index_c3d for label in model_labels for index_c3d, c3d_label in enumerate(c3d_labels) if label in c3d_label]
+    markers_reordered = np.zeros((3, len(labels_index), markers.shape[2]))
     for index, label_index in enumerate(labels_index):
-        if index in missing_markers_index:
-            markers_reordered[:, index, :] = np.nan
-        else:
-            markers_reordered[:, index, :] = markers[:, label_index, :]
+        markers_reordered[:, index, :] = markers[:, label_index, :]
 
     # markers_rotated = np.zeros(markers_reordered.shape)
     # for frame in range(markers.shape[2]):
@@ -344,8 +313,9 @@ if __name__ == "__main__":
     )
 
     # --- Solve the program --- #
-    options = {"max_iter": 3000, "tol": 1e-6, "constr_viol_tol": 1e-3, "linear_solver": "ma57"}
-    sol = ocp.solve(solver=Solver.IPOPT, solver_options=options, show_online_optim=False)
+    # options = {"max_iter": 3000, "tol": 1e-6, "constr_viol_tol": 1e-3, "linear_solver": "ma57"}
+    # sol = ocp.solve(solver=Solver.IPOPT, solver_options=options, show_online_optim=False)
+    sol = ocp.solve(show_online_optim=False)
 
     # --- Save --- #
     save_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
@@ -355,18 +325,15 @@ if __name__ == "__main__":
     # save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_EndChainMarkers' + ".bo"
     # save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_not_kalman_EndChainMarkers' + ".bo"
     # save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_not_kalman_not_rotated_EndChainMarkers' + ".bo"
-    # save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_rotated_model' + ".bo"
-    save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF' + ".bo"
+    save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_rotated_model' + ".bo"
     ocp.save(sol, save_name)
 
     # --- Load --- #
     # ocp, sol = OptimalControlProgram.load(save_name)
 
     # --- Get the results --- #
-    states, controls, params = Data.get_data(ocp, sol, get_parameters=True)
-    angle = params["gravity_angle"]/np.pi*180
+    states, controls = Data.get_data(ocp, sol)
     print('Number of shooting points: ', adjusted_number_shooting_points)
-    print('Gravity rotation: ', angle)
 
     if broken_dofs is not None:
         print('Abnormal Kalman states at DoFs: ', broken_dofs)
