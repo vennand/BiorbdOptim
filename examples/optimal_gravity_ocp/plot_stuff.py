@@ -8,7 +8,7 @@ from casadi import MX, Function
 import os
 import warnings
 from load_data_filename import load_data_filename
-from x_bounds import x_bounds
+from adjust_number_shooting_points import adjust_number_shooting_points
 from matplotlib import pyplot
 from matplotlib.lines import Line2D
 
@@ -16,11 +16,15 @@ from matplotlib.lines import Line2D
 
 
 def check_Kalman(q_ref):
-    segments_with_pi_limits = [15, 17, 18, 24, 26, 27, 31, 34, 37, 40]
+    segments_with_pi_limits = [14, 16, 17, 18, 23, 25, 26, 27, 30, 33, 36, 39]
+    hand_segments = [19, 20, 28, 29]
     bool = np.zeros(q_ref.shape)
+    bool[4, :] = ((q_ref[4, :] / (np.pi / 2)).astype(int) != 0)
     for (i, j), q in np.ndenumerate(q_ref[6:, :]):
-        if i+6+1 in segments_with_pi_limits:
+        if i+6 in segments_with_pi_limits:
             bool[i+6, j] = ((q / np.pi).astype(int) != 0)
+        elif i+6 in hand_segments:
+            bool[i+6, j] = ((q / (3*np.pi/2)).astype(int) != 0)
         else:
             bool[i+6, j] = ((q / (np.pi/2)).astype(int) != 0)
     states_idx_bool = bool.any(axis=1)
@@ -40,25 +44,77 @@ def check_Kalman(q_ref):
     return states_idx_range_list, broken_dofs
 
 
-def correct_Kalman(q_ref, qdot_ref, qddot_ref, q_ref_matlab, qdot_ref_matlab, qddot_ref_matlab):
-    _, broken_dofs = check_Kalman(q_ref)
-    _, broken_dofs_matlab = check_Kalman(q_ref_matlab)
+def choose_Kalman(q_ref_1, qdot_ref_1, qddot_ref_1, q_ref_2, qdot_ref_2, qddot_ref_2):
+    _, broken_dofs_1 = check_Kalman(q_ref_1)
+    _, broken_dofs_2 = check_Kalman(q_ref_2)
 
-    q_ref_corrected = q_ref_matlab
-    qdot_ref_corrected = qdot_ref_matlab
-    qddot_ref_corrected = qddot_ref_matlab
+    q_ref_chosen = np.copy(q_ref_1)
+    qdot_ref_chosen = np.copy(qdot_ref_1)
+    qddot_ref_chosen = np.copy(qddot_ref_1)
 
-    for dof in broken_dofs_matlab:
-        if dof not in broken_dofs:
-            q_ref_corrected[dof, :] = q_ref[dof, :]
-            qdot_ref_corrected[dof, :] = qdot_ref[dof, :]
-            qddot_ref_corrected[dof, :] = qddot_ref[dof, :]
+    for dof in broken_dofs_1:
+        if dof not in broken_dofs_2:
+            q_ref_chosen[dof, :] = q_ref_2[dof, :]
+            qdot_ref_chosen[dof, :] = qdot_ref_2[dof, :]
+            qddot_ref_chosen[dof, :] = qddot_ref_2[dof, :]
 
-    return q_ref_corrected, qdot_ref_corrected, qddot_ref_corrected
+    return q_ref_chosen, qdot_ref_chosen, qddot_ref_chosen
 
-subject = 'SaMi'
+
+def shift_by_pi(q, error_margin):
+    if ((np.pi)*(1-error_margin)) < np.mean(q) < ((np.pi)*(1+error_margin)):
+        q = q - np.pi
+    elif ((np.pi)*(1-error_margin)) < -np.mean(q) < ((np.pi)*(1+error_margin)):
+        q = q + np.pi
+
+    return q
+
+
+def correct_Kalman(biorbd_model, q):
+    error_margin = 0.35
+    q_corrected = np.copy(q)
+    # q_corrected = q
+
+    first_dof_segments_with_3DoFs = [6, 9, 14, 23, 30, 36]
+    first_dof_segments_with_2DoFs = [12, 17, 19, 21, 26, 28, 34, 40]
+
+    n_q = biorbd_model.nbQ()
+    q_corrected[4, :] = q[4, :] - ((2 * np.pi) * (np.mean(q[4, :]) / (2 * np.pi)).astype(int))
+    for dof in range(6, n_q):
+        q_corrected[dof, :] = q[dof, :] - ((2*np.pi) * (np.mean(q[dof, :]) / (2*np.pi)).astype(int))
+        if ((2*np.pi)*(1-error_margin)) < np.mean(q_corrected[dof, :]) < ((2*np.pi)*(1+error_margin)):
+            q_corrected[dof, :] = q_corrected[dof, :] - (2*np.pi)
+        elif ((2*np.pi)*(1-error_margin)) < -np.mean(q_corrected[dof, :]) < ((2*np.pi)*(1+error_margin)):
+            q_corrected[dof, :] = q_corrected[dof, :] + (2*np.pi)
+
+    if ((np.pi) * (1 - error_margin)) < np.abs(np.mean(q_corrected[4, :])) < ((np.pi) * (1 + error_margin)):
+        q_corrected[3, :] = shift_by_pi(q_corrected[3, :], error_margin)
+        q_corrected[4, :] = -shift_by_pi(q_corrected[4, :], error_margin)
+        q_corrected[5, :] = shift_by_pi(q_corrected[5, :], error_margin)
+
+    for dof in first_dof_segments_with_2DoFs:
+        if ((np.pi) * (1 - error_margin)) < np.abs(np.mean(q_corrected[dof, :])) < ((np.pi) * (1 + error_margin)):
+            q_corrected[dof, :] = shift_by_pi(q_corrected[dof, :], error_margin)
+            q_corrected[dof+1, :] = -shift_by_pi(q_corrected[dof+1, :], error_margin)
+
+    for dof in first_dof_segments_with_3DoFs:
+        if (((np.pi) * (1 - error_margin)) < np.abs(np.mean(q_corrected[dof, :])) < ((np.pi) * (1 + error_margin)) or
+            ((np.pi) * (1 - error_margin)) < np.abs(np.mean(q_corrected[dof+1, :])) < ((np.pi) * (1 + error_margin)) or
+            ((np.pi) * (1 - error_margin)) < np.abs(np.mean(q_corrected[dof+2, :])) < ((np.pi) * (1 + error_margin))):
+            q_corrected[dof, :] = shift_by_pi(q_corrected[dof, :], error_margin)
+            q_corrected[dof+1, :] = -shift_by_pi(q_corrected[dof+1, :], error_margin)
+            q_corrected[dof+2, :] = shift_by_pi(q_corrected[dof+2, :], error_margin)
+
+    return q_corrected
+
+
+subject = 'DoCi'
+# subject = 'JeCh'
+# subject = 'BeLa'
+# subject = 'GuSe'
+# subject = 'SaMi'
 number_shooting_points = 100
-trial = '821_seul_3'
+trial = '822'
 
 data_path = '/home/andre/Optimisation/data/' + subject + '/'
 model_path = data_path + 'Model/'
@@ -74,12 +130,7 @@ qdd_name = data_filename['qdd']
 frames = data_filename['frames']
 
 # --- Adjust number of shooting points --- #
-list_adjusted_number_shooting_points = []
-for frame_num in range(1, (frames.stop - frames.start - 1) // frames.step + 1):
-    list_adjusted_number_shooting_points.append((frames.stop - frames.start - 1) // frame_num + 1)
-diff_shooting_points = [abs(number_shooting_points - point) for point in list_adjusted_number_shooting_points]
-step_size = diff_shooting_points.index(min(diff_shooting_points)) + 1
-adjusted_number_shooting_points = ((frames.stop - frames.start - 1) // step_size + 1) - 1
+adjusted_number_shooting_points, step_size = adjust_number_shooting_points(number_shooting_points, frames)
 
 biorbd_model = biorbd.Model(model_path + model_name)
 c3d = ezc3d.c3d(c3d_path + c3d_name)
@@ -92,9 +143,11 @@ load_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
 load_variables_name = load_path + subject + '/Kalman/' + os.path.splitext(c3d_name)[0] + ".pkl"
 with open(load_variables_name, 'rb') as handle:
     kalman_states = pickle.load(handle)
-q_ref = kalman_states['q']
-qdot_ref = kalman_states['qd']
-qddot_ref = kalman_states['qdd']
+q_ref_biorbd = kalman_states['q']
+qdot_ref_biorbd = kalman_states['qd']
+qddot_ref_biorbd = kalman_states['qdd']
+
+# q_ref, qdot_ref, qddot_ref = correct_Kalman(q_ref_biorbd, qdot_ref_biorbd, qddot_ref_biorbd, q_ref_matlab, qdot_ref_matlab, qddot_ref_matlab)
 
 
 # load_path_OGE = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
@@ -106,14 +159,26 @@ qddot_ref = kalman_states['qdd']
 # # qddot_ref_OGE = OGE_states['states']['qddot']
 #
 #
-# load_path_OGE = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
-# load_variables_name = load_path_OGE + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF' + ".pkl"
-# with open(load_variables_name, 'rb') as handle:
-#     OGE_mixed_states = pickle.load(handle)
-# q_ref_OGE_mixed = OGE_mixed_states['states']['q']
-# # qdot_ref_OGE_mixed = OGE_mixed_states['states']['qdot']
-# # qddot_ref_OGE_mixed = OGE_mixed_states['states']['qddot']
+load_path_OGE = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
+load_variables_name = load_path_OGE + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF' + ".pkl"
+if os.path.isfile(load_variables_name):
+    with open(load_variables_name, 'rb') as handle:
+        OGE_mixed_states = pickle.load(handle)
+    q_ref_OGE_mixed = OGE_mixed_states['states']['q']
+    # qdot_ref_OGE_mixed = OGE_mixed_states['states']['qdot']
+    # qddot_ref_OGE_mixed = OGE_mixed_states['states']['qddot']
+else:
+    q_ref_OGE_mixed = None
 
+q_corrected_matlab = correct_Kalman(biorbd_model, q_ref_matlab)
+q_corrected_biorbd = correct_Kalman(biorbd_model, q_ref_biorbd)
+
+# q_corrected_biorbd[3, :] = q_corrected_biorbd[3, :] - 4*np.pi
+# q_corrected_biorbd[4, :] = -q_corrected_biorbd[4, :]
+# q_corrected_biorbd[5, :] = q_corrected_biorbd[5, :] - 1.5*np.pi
+
+q_corrected, _, _ = choose_Kalman(q_corrected_matlab, qdot_ref_matlab, qddot_ref_matlab, q_corrected_biorbd, qdot_ref_biorbd, qddot_ref_biorbd)
+# q_corrected, _, _ = choose_Kalman(q_corrected_biorbd, qdot_ref_biorbd, qddot_ref_biorbd, q_corrected_matlab, qdot_ref_matlab, qddot_ref_matlab)
 
 dofs = [range(0, 6), range(6, 9), range(9, 12),
         range(12, 14), range(14, 17), range(17, 19), range(19, 21),
@@ -127,21 +192,25 @@ dofs_name = ['Pelvis', 'Thorax', 'Head',
              'Right thigh', 'Right leg', 'Right foot',
              'Left thigh', 'Left leg', 'Left foot',
              ]
-# dofs = range(6, 9)
+# dofs = range(0, 6)
 for idx_dof, dof in enumerate(dofs):
     fig = pyplot.figure()
-    pyplot.plot(q_ref_matlab[dof, :].T, color='blue')
-    pyplot.plot(q_ref[dof, :].T, color='red')
+    # pyplot.plot(q_ref_matlab[dof, :].T, color='blue')
+    # pyplot.plot(q_ref_biorbd[dof, :].T, color='red')
+    pyplot.plot(q_corrected_matlab[dof, :].T, color='blue')
+    pyplot.plot(q_corrected_biorbd[dof, :].T, color='red')
+    pyplot.plot(q_corrected[dof, :].T, linestyle='--', color='black')
     # pyplot.plot(q_ref_OGE[dof, :].T, color='green')
-    # pyplot.plot(range(0, 311, 3), q_ref_OGE_mixed[dof, :].T, color='orange')
+    if q_ref_OGE_mixed is not None:
+        pyplot.plot(range(0, len(frames), step_size), q_ref_OGE_mixed[dof, :].T, color='orange')
 
     # fig = pyplot.figure()
     # pyplot.plot(qdot_ref_matlab[dof, :].T, color='blue')
-    # pyplot.plot(qdot_ref[dof, :].T, color='red')
+    # pyplot.plot(qdot_ref_biorbd[dof, :].T, color='red')
     #
     # fig = pyplot.figure()
     # pyplot.plot(qddot_ref_matlab[dof, :].T, color='blue')
-    # pyplot.plot(qddot_ref[dof, :].T, color='red')
+    # pyplot.plot(qddot_ref_biorbd[dof, :].T, color='red')
 
     pyplot.title(dofs_name[idx_dof])
     lm_matlab = Line2D([0, 1], [0, 1], linestyle='-', color='blue')

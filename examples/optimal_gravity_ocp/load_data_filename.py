@@ -1,13 +1,13 @@
 def load_data_filename(subject, trial):
     if subject == 'DoCi':
-        # model_name = 'DoCi.s2mMod'
-        model_name = 'DoCi_SystemesDaxesGlobal_surBassin_rotAndre.s2mMod'
+        model_name = 'DoCi.s2mMod'
+        # model_name = 'DoCi_SystemesDaxesGlobal_surBassin_rotAndre.s2mMod'
         if trial == '822':
             c3d_name = 'Do_822_contact_2.c3d'
             q_name = 'Do_822_contact_2_MOD200.00_GenderF_DoCig_Q.mat'
             qd_name = 'Do_822_contact_2_MOD200.00_GenderF_DoCig_V.mat'
             qdd_name = 'Do_822_contact_2_MOD200.00_GenderF_DoCig_A.mat'
-            frames = range(3099, 3300)
+            frames = range(3089, 3360)
         elif trial == '44_1':
             c3d_name = 'Do_44_mvtPrep_1.c3d'
             q_name = 'Do_44_mvtPrep_1_MOD200.00_GenderF_DoCig_Q.mat'
@@ -28,14 +28,45 @@ def load_data_filename(subject, trial):
             frames = range(4099, 4350)
     elif subject == 'JeCh':
         model_name = 'JeCh_201.s2mMod'
-        c3d_name = 'Je_833_1.c3d'
-        q_name = 'Je_833_1_MOD201.00_GenderM_JeChg_Q.mat'
-        qd_name = 'Je_833_1_MOD201.00_GenderM_JeChg_V.mat'
-        qdd_name = 'Je_833_1_MOD201.00_GenderM_JeChg_A.mat'
-
-        frames = range(1929, 2200)
+        # model_name = 'JeCh_SystemeDaxesGlobal_surBassin'
+        if trial == '833_1':
+            c3d_name = 'Je_833_1.c3d'
+            q_name = 'Je_833_1_MOD201.00_GenderM_JeChg_Q.mat'
+            qd_name = 'Je_833_1_MOD201.00_GenderM_JeChg_V.mat'
+            qdd_name = 'Je_833_1_MOD201.00_GenderM_JeChg_A.mat'
+            # frames = range(1919, 2220)
+            frames = range(2299, 2590)
+        if trial == '833_2':
+            c3d_name = 'Je_833_2.c3d'
+            q_name = 'Je_833_2_MOD201.00_GenderM_JeChg_Q.mat'
+            qd_name = 'Je_833_2_MOD201.00_GenderM_JeChg_V.mat'
+            qdd_name = 'Je_833_2_MOD201.00_GenderM_JeChg_A.mat'
+            # frames = range(1899, 2210)
+            frames = range(2289, 2590)
+        if trial == '833_3':
+            c3d_name = 'Je_833_3.c3d'
+            q_name = 'Je_833_3_MOD201.00_GenderM_JeChg_Q.mat'
+            qd_name = 'Je_833_3_MOD201.00_GenderM_JeChg_V.mat'
+            qdd_name = 'Je_833_3_MOD201.00_GenderM_JeChg_A.mat'
+            # frames = range(2179, 2490)
+            frames = range(2569, 2880)
+        if trial == '833_4':
+            c3d_name = 'Je_833_4.c3d'
+            q_name = 'Je_833_4_MOD201.00_GenderM_JeChg_Q.mat'
+            qd_name = 'Je_833_4_MOD201.00_GenderM_JeChg_V.mat'
+            qdd_name = 'Je_833_4_MOD201.00_GenderM_JeChg_A.mat'
+            # frames = range(2269, 2590)
+            frames = range(2669, 2970)
+        if trial == '833_5':
+            c3d_name = 'Je_833_5.c3d'
+            q_name = 'Je_833_5_MOD201.00_GenderM_JeChg_Q.mat'
+            qd_name = 'Je_833_5_MOD201.00_GenderM_JeChg_V.mat'
+            qdd_name = 'Je_833_5_MOD201.00_GenderM_JeChg_A.mat'
+            # frames = range(2279, 2600)
+            frames = range(2669, 2980)
     elif subject == 'BeLa':
-        model_name = 'BeLa_SystemeDaxesGlobal_surBassin.s2mMod'
+        model_name = 'BeLa.s2mMod'
+        # model_name = 'BeLa_SystemeDaxesGlobal_surBassin.s2mMod'
         if trial == '44_1':
             c3d_name = 'Ben_44_mvtPrep_1.c3d'
             q_name = 'Ben_44_mvtPrep_1_MOD202.00_GenderM_BeLag_Q.mat'
@@ -55,7 +86,8 @@ def load_data_filename(subject, trial):
             qdd_name = 'Ben_44_mvtPrep_3_MOD202.00_GenderM_BeLag_A.mat'
             frames = range(2449, 2700)
     elif subject == 'GuSe':
-        model_name = 'GuSe_SystemeDaxesGlobal_surBassin.s2mMod'
+        model_name = 'GuSe.s2mMod'
+        # model_name = 'GuSe_SystemeDaxesGlobal_surBassin.s2mMod'
         if trial == '44_2':
             c3d_name = 'Gui_44_mvt_Prep_2.c3d'
             q_name = 'Gui_44_mvt_Prep_2_MOD200.00_GenderM_GuSeg_Q.mat'
@@ -156,18 +188,22 @@ def load_data_filename(subject, trial):
             q_name = 'Sa_bras_volant_1_MOD200.00_GenderF_SaMig_Q.mat'
             qd_name = 'Sa_bras_volant_1_MOD200.00_GenderF_SaMig_V.mat'
             qdd_name = 'Sa_bras_volant_1_MOD200.00_GenderF_SaMig_A.mat'
-            frames = range(0, 4657)
+            # frames = range(0, 4657)
             # frames = range(649, 3950)
             # frames = range(649, 1150)
             # frames = range(1249, 1950)
             # frames = range(2549, 3100)
-            # frames = range(3349, 3950)
+            frames = range(3349, 3950)
         elif trial == 'bras_volant_2':
             c3d_name = 'Sa_bras_volant_2.c3d'
             q_name = 'Sa_bras_volant_2_MOD200.00_GenderF_SaMig_Q.mat'
             qd_name = 'Sa_bras_volant_2_MOD200.00_GenderF_SaMig_V.mat'
             qdd_name = 'Sa_bras_volant_2_MOD200.00_GenderF_SaMig_A.mat'
-            frames = range(0, 3907)
+            # frames = range(0, 3907)
+            # frames = range(0, 3100)
+            # frames = range(49, 849)
+            # frames = range(1599, 2200)
+            frames = range(2249, 3100)
     else:
         raise Exception(subject + ' is not a valid subject')
 

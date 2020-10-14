@@ -9,6 +9,8 @@ import os
 import warnings
 from load_data_filename import load_data_filename
 from x_bounds import x_bounds
+from adjust_number_shooting_points import adjust_number_shooting_points
+from reorder_markers import reorder_markers
 
 from biorbd_optim import (
     OptimalControlProgram,
@@ -49,24 +51,16 @@ def inverse_dynamics(biorbd_model, q_ref, qd_ref, qdd_ref):
     return id(q_ref, qd_ref, qdd_ref)[:, :-1]
 
 
-# def check_Kalman(q_ref):
-#     segments_with_pi_limits = [15, 17, 24, 26, 18, 27, 31, 37, 34, 40]
-#     bool = np.zeros(q_ref[6:, :].shape)
-#     for (i, j), q in np.ndenumerate(q_ref[6:, :]):
-#         if i+6+1 in segments_with_pi_limits:
-#             bool[i, j] = ((q / np.pi).astype(int) != 0)
-#         else:
-#             bool[i, j] = ((q / (np.pi/2)).astype(int) != 0)
-#     # bool = ((q_ref[6:, :] / (2*np.pi)).astype(int) != 0)
-#     return bool.any()
-
-
 def check_Kalman(q_ref):
-    segments_with_pi_limits = [15, 17, 18, 24, 26, 27, 31, 34, 37, 40]
+    segments_with_pi_limits = [14, 16, 17, 18, 23, 25, 26, 27, 30, 33, 36, 39]
+    hand_segments = [19, 20, 28, 29]
     bool = np.zeros(q_ref.shape)
+    bool[4, :] = ((q_ref[4, :] / (np.pi / 2)).astype(int) != 0)
     for (i, j), q in np.ndenumerate(q_ref[6:, :]):
-        if i+6+1 in segments_with_pi_limits:
+        if i+6 in segments_with_pi_limits:
             bool[i+6, j] = ((q / np.pi).astype(int) != 0)
+        elif i+6 in hand_segments:
+            bool[i+6, j] = ((q / (3*np.pi/2)).astype(int) != 0)
         else:
             bool[i+6, j] = ((q / (np.pi/2)).astype(int) != 0)
     states_idx_bool = bool.any(axis=1)
@@ -86,24 +80,69 @@ def check_Kalman(q_ref):
     return states_idx_range_list, broken_dofs
 
 
-def correct_Kalman(q_ref, qdot_ref, qddot_ref, q_ref_matlab, qdot_ref_matlab, qddot_ref_matlab):
-    _, broken_dofs = check_Kalman(q_ref)
-    _, broken_dofs_matlab = check_Kalman(q_ref_matlab)
+def choose_Kalman(q_ref_1, qdot_ref_1, qddot_ref_1, q_ref_2, qdot_ref_2, qddot_ref_2):
+    _, broken_dofs_1 = check_Kalman(q_ref_1)
+    _, broken_dofs_2 = check_Kalman(q_ref_2)
 
-    q_ref_corrected = q_ref_matlab
-    qdot_ref_corrected = qdot_ref_matlab
-    qddot_ref_corrected = qddot_ref_matlab
+    q_ref_chosen = q_ref_1
+    qdot_ref_chosen = qdot_ref_1
+    qddot_ref_chosen = qddot_ref_1
 
-    for dof in broken_dofs_matlab:
-        if dof not in broken_dofs:
-            q_ref_corrected[dof, :] = q_ref[dof, :]
-            qdot_ref_corrected[dof, :] = qdot_ref[dof, :]
-            qddot_ref_corrected[dof, :] = qddot_ref[dof, :]
+    for dof in broken_dofs_1:
+        if dof not in broken_dofs_2:
+            q_ref_chosen[dof, :] = q_ref_2[dof, :]
+            qdot_ref_chosen[dof, :] = qdot_ref_2[dof, :]
+            qddot_ref_chosen[dof, :] = qddot_ref_2[dof, :]
 
-    return q_ref_corrected, qdot_ref_corrected, qddot_ref_corrected
+    return q_ref_chosen, qdot_ref_chosen, qddot_ref_chosen
 
 
-def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_ref, tau_init, xmin, xmax, min_g, max_g, markers_ref=None, markers_idx_ref=None, states_idx_ref=None):
+def shift_by_pi(q, error_margin):
+    if ((np.pi)*(1-error_margin)) < np.mean(q) < ((np.pi)*(1+error_margin)):
+        q = q - np.pi
+    elif ((np.pi)*(1-error_margin)) < -np.mean(q) < ((np.pi)*(1+error_margin)):
+        q = q + np.pi
+
+    return q
+
+
+def correct_Kalman(biorbd_model, q):
+    error_margin = 0.35
+
+    first_dof_segments_with_3DoFs = [6, 9, 14, 23, 30, 36]
+    first_dof_segments_with_2DoFs = [12, 17, 19, 21, 26, 28, 34, 40]
+
+    n_q = biorbd_model.nbQ()
+    q[4, :] = q[4, :] - ((2 * np.pi) * (np.mean(q[4, :]) / (2 * np.pi)).astype(int))
+    for dof in range(6, n_q):
+        q[dof, :] = q[dof, :] - ((2*np.pi) * (np.mean(q[dof, :]) / (2*np.pi)).astype(int))
+        if ((2*np.pi)*(1-error_margin)) < np.mean(q[dof, :]) < ((2*np.pi)*(1+error_margin)):
+            q[dof, :] = q[dof, :] - (2*np.pi)
+        elif ((2*np.pi)*(1-error_margin)) < -np.mean(q[dof, :]) < ((2*np.pi)*(1+error_margin)):
+            q[dof, :] = q[dof, :] + (2*np.pi)
+
+    if ((np.pi) * (1 - error_margin)) < np.abs(np.mean(q[4, :])) < ((np.pi) * (1 + error_margin)):
+        q[3, :] = shift_by_pi(q[3, :], error_margin)
+        q[4, :] = -shift_by_pi(q[4, :], error_margin)
+        q[5, :] = shift_by_pi(q[5, :], error_margin)
+
+    for dof in first_dof_segments_with_2DoFs:
+        if ((np.pi) * (1 - error_margin)) < np.abs(np.mean(q[dof, :])) < ((np.pi) * (1 + error_margin)):
+            q[dof, :] = shift_by_pi(q[dof, :], error_margin)
+            q[dof+1, :] = -shift_by_pi(q[dof+1, :], error_margin)
+
+    for dof in first_dof_segments_with_3DoFs:
+        if (((np.pi) * (1 - error_margin)) < np.abs(np.mean(q[dof, :])) < ((np.pi) * (1 + error_margin)) or
+            ((np.pi) * (1 - error_margin)) < np.abs(np.mean(q[dof+1, :])) < ((np.pi) * (1 + error_margin)) or
+            ((np.pi) * (1 - error_margin)) < np.abs(np.mean(q[dof+2, :])) < ((np.pi) * (1 + error_margin))):
+            q[dof, :] = shift_by_pi(q[dof, :], error_margin)
+            q[dof+1, :] = -shift_by_pi(q[dof+1, :], error_margin)
+            q[dof+2, :] = shift_by_pi(q[dof+2, :], error_margin)
+
+    return q
+
+
+def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_ref, tau_init, xmin, xmax, min_g, max_g, markers_ref=None, markers_idx_ref=None, states_idx_ref=None, broken_dofs=None):
     # --- Options --- #
     torque_min, torque_max = -150, 150
     n_q = biorbd_model.nbQ()
@@ -143,12 +182,18 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
     # Path constraint
     X_bounds = BoundsList()
     X_bounds.add(Bounds(min_bound=xmin, max_bound=xmax))
+    # if markers_idx_ref is None and broken_dofs is not None:
+    #     for dof in broken_dofs:
+    #         X_bounds[0].min[dof, :] = 0
+    #         X_bounds[0].max[dof, :] = 0
+    # X_bounds[0].min[40:42, :] = 0
+    # X_bounds[0].max[40:42, :] = 0
 
 
     # Initial guess
     X_init = InitialConditionsList()
-    # q_ref = np.zeros(q_ref.shape)
-    # qdot_ref = np.zeros(qdot_ref.shape)
+    q_ref = np.zeros(q_ref.shape)
+    qdot_ref = np.zeros(qdot_ref.shape)
     X_init.add(np.concatenate([q_ref, qdot_ref]), interpolation=InterpolationType.EACH_FRAME)
 
     # Define control path constraint
@@ -158,7 +203,7 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
     U_bounds[0].max[:6, :] = 0
 
     U_init = InitialConditionsList()
-    # tau_init = np.zeros(tau_init.shape)
+    tau_init = np.zeros(tau_init.shape)
     U_init.add(tau_init, interpolation=InterpolationType.EACH_FRAME)
 
     # Define the parameter to optimize
@@ -194,13 +239,13 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
 
 if __name__ == "__main__":
     start = time.time()
-    # subject = 'DoCi'
+    subject = 'DoCi'
     # subject = 'JeCh'
     # subject = 'BeLa'
     # subject = 'GuSe'
-    subject = 'SaMi'
+    # subject = 'SaMi'
     number_shooting_points = 100
-    trial = '821_seul_3'
+    trial = '822'
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
     model_path = data_path + 'Model/'
@@ -226,19 +271,16 @@ if __name__ == "__main__":
     load_variables_name = load_path + subject + '/Kalman/' + os.path.splitext(c3d_name)[0] + ".pkl"
     with open(load_variables_name, 'rb') as handle:
         kalman_states = pickle.load(handle)
-    q_ref = kalman_states['q']
-    qdot_ref = kalman_states['qd']
-    qddot_ref = kalman_states['qdd']
+    q_ref_biorbd = kalman_states['q']
+    qdot_ref_biorbd = kalman_states['qd']
+    qddot_ref_biorbd = kalman_states['qdd']
 
     biorbd_model.setGravity(biorbd.Vector3d(0, 0, -9.80639))
 
     # --- Adjust number of shooting points --- #
-    list_adjusted_number_shooting_points = []
-    for frame_num in range(1, (frames.stop - frames.start - 1) // frames.step + 1):
-        list_adjusted_number_shooting_points.append((frames.stop - frames.start - 1) // frame_num + 1)
-    diff_shooting_points = [abs(number_shooting_points - point) for point in list_adjusted_number_shooting_points]
-    step_size = diff_shooting_points.index(min(diff_shooting_points)) + 1
-    adjusted_number_shooting_points = ((frames.stop - frames.start - 1) // step_size + 1) - 1
+    adjusted_number_shooting_points, step_size = adjust_number_shooting_points(number_shooting_points, frames)
+    print('Adjusted number of shooting points: ', adjusted_number_shooting_points)
+    print('Node step size: ', step_size)
 
     frequency = c3d['header']['points']['frame_rate']
     duration = len(frames) / frequency
@@ -249,18 +291,43 @@ if __name__ == "__main__":
     qdot_ref_matlab = qdot_ref_matlab[:, frames.start:frames.stop:step_size]
     qddot_ref_matlab = qddot_ref_matlab[:, frames.start:frames.stop:step_size]
 
-    q_ref = q_ref[:, ::step_size]
-    qdot_ref = qdot_ref[:, ::step_size]
-    qddot_ref = qddot_ref[:, ::step_size]
+    q_ref_biorbd = q_ref_biorbd[:, ::step_size]
+    qdot_ref_biorbd = qdot_ref_biorbd[:, ::step_size]
+    qddot_ref_biorbd = qddot_ref_biorbd[:, ::step_size]
 
-    q_ref, qdot_ref, qddot_ref = correct_Kalman(q_ref, qdot_ref, qddot_ref, q_ref_matlab, qdot_ref_matlab, qddot_ref_matlab)
+    q_ref_matlab = correct_Kalman(biorbd_model, q_ref_matlab)
+    q_ref_biorbd = correct_Kalman(biorbd_model, q_ref_biorbd)
 
-    tau_ref = inverse_dynamics(biorbd_model, q_ref, qdot_ref, qddot_ref)
+    if subject == 'DoCi' or subject == 'BeLa' or subject == 'GuSe':
+        q_ref, qdot_ref, qddot_ref = choose_Kalman(q_ref_matlab, qdot_ref_matlab, qddot_ref_matlab, q_ref_biorbd, qdot_ref_biorbd, qddot_ref_biorbd)
+        q_ref[:6, :] = q_ref_biorbd[:6, :]
+        qdot_ref[:6, :] = qdot_ref_biorbd[:6, :]
+        qddot_ref[:6, :] = qddot_ref_biorbd[:6, :]
+    if subject == 'JeCh':
+        q_ref, qdot_ref, qddot_ref = choose_Kalman(q_ref_biorbd, qdot_ref_biorbd, qddot_ref_biorbd, q_ref_matlab, qdot_ref_matlab, qddot_ref_matlab)
+    if subject == 'SaMi':
+        if (trial == '821_seul_2' or trial == '821_seul_3'
+            or trial == '821_contact_1' or trial == '821_contact_2' or trial == '821_contact_3'):
+            q_ref, qdot_ref, qddot_ref = choose_Kalman(q_ref_biorbd, qdot_ref_biorbd, qddot_ref_biorbd, q_ref_matlab, qdot_ref_matlab, qddot_ref_matlab)
+        else:
+            q_ref, qdot_ref, qddot_ref = choose_Kalman(q_ref_matlab, qdot_ref_matlab, qddot_ref_matlab, q_ref_biorbd, qdot_ref_biorbd, qddot_ref_biorbd)
+
+    # if (trial == '821_822_3'
+    #     # or trial == '821_822_4'
+    #     ):
+    #     q_ref[:6, :] = q_ref_biorbd[:6, :]
+    #     qdot_ref[:6, :] = qdot_ref_biorbd[:6, :]
+    #     qddot_ref[:6, :] = qddot_ref_biorbd[:6, :]
 
     states_idx_range_list, broken_dofs = check_Kalman(q_ref)
     if broken_dofs is not None:
         print('Abnormal Kalman states at DoFs: ', broken_dofs)
+        for dof in broken_dofs:
+            q_ref[dof, :] = 0
+            qdot_ref[dof, :] = 0
+            qddot_ref[dof, :] = 0
 
+    tau_ref = inverse_dynamics(biorbd_model, q_ref, qdot_ref, qddot_ref)
 
     # load_name = '/home/andre/BiorbdOptim/examples/optimal_estimation_no_constraint_ocp/Solutions/DoCi/Do_822_contact_2.bo'
     # load_name = '/home/andre/BiorbdOptim/examples/optimal_estimation_no_constraint_ocp/Solutions/DoCi/Do_822_contact_2_not_rotated.bo'
@@ -272,73 +339,17 @@ if __name__ == "__main__":
 
     xmin, xmax = x_bounds(biorbd_model)
 
-    markers = c3d['data']['points'][:3, :95, frames.start:frames.stop:step_size] / 1000
-    c3d_labels = c3d['parameters']['POINT']['LABELS']['value'][:95]
-    model_labels = [label.to_string() for label in biorbd_model.markerNames()]
-    # labels_index = [index_c3d for label in model_labels for index_c3d, c3d_label in enumerate(c3d_labels) if label in c3d_label]
-
-    ### --- Test --- ###
-    labels_index = []
-    missing_markers_index = []
-    for index_model, model_label in enumerate(model_labels):
-        missing_markers_bool = True
-        for index_c3d, c3d_label in enumerate(c3d_labels):
-            if model_label in c3d_label:
-                labels_index.append(index_c3d)
-                missing_markers_bool = False
-        if missing_markers_bool:
-            labels_index.append(index_model)
-            missing_markers_index.append(index_model)
-    ### --- Test --- ###
-
-    # markers_reordered = np.zeros((3, len(labels_index), markers.shape[2]))
-    # for index, label_index in enumerate(labels_index):
-    #     markers_reordered[:, index, :] = markers[:, label_index, :]
-    markers_reordered = np.zeros((3, markers.shape[1], markers.shape[2]))
-    for index, label_index in enumerate(labels_index):
-        if index in missing_markers_index:
-            markers_reordered[:, index, :] = np.nan
-        else:
-            markers_reordered[:, index, :] = markers[:, label_index, :]
+    markers_reordered, markers_idx_ref = reorder_markers(biorbd_model, c3d, frames, step_size, broken_dofs)
 
     # markers_rotated = np.zeros(markers_reordered.shape)
     # for frame in range(markers.shape[2]):
     #     markers_rotated[..., frame] = refential_matrix(subject).T.dot(markers_reordered[..., frame])
     markers_rotated = markers_reordered
 
-    model_segments = {
-        'pelvis': {'markers': ['EIASD', 'CID', 'EIPSD', 'EIPSG', 'CIG', 'EIASG'], 'dofs': range(0, 6)},
-        'thorax': {'markers': ['MANU', 'MIDSTERNUM', 'XIPHOIDE', 'C7', 'D3', 'D10'], 'dofs': range(6, 9)},
-        'head': {'markers': ['ZYGD', 'TEMPD', 'GLABELLE', 'TEMPG', 'ZYGG'], 'dofs': range(9, 12)},
-        'right_shoulder': {'markers': ['CLAV1D', 'CLAV2D', 'CLAV3D', 'ACRANTD', 'ACRPOSTD', 'SCAPD'], 'dofs': range(12, 14)},
-        'right_arm': {'markers': ['DELTD', 'BICEPSD', 'TRICEPSD', 'EPICOND', 'EPITROD'], 'dofs': range(14, 17)},
-        'right_forearm': {'markers': ['OLE1D', 'OLE2D', 'BRACHD', 'BRACHANTD', 'ABRAPOSTD', 'ABRASANTD', 'ULNAD', 'RADIUSD'], 'dofs': range(17, 19)},
-        'right_hand': {'markers': ['METAC5D', 'METAC2D', 'MIDMETAC3D'], 'dofs': range(19, 21)},
-        'left_shoulder': {'markers': ['CLAV1G', 'CLAV2G', 'CLAV3G', 'ACRANTG', 'ACRPOSTG', 'SCAPG'], 'dofs': range(21, 23)},
-        'left_arm': {'markers': ['DELTG', 'BICEPSG', 'TRICEPSG', 'EPICONG', 'EPITROG'], 'dofs': range(23, 26)},
-        'left_forearm': {'markers': ['OLE1G', 'OLE2G', 'BRACHG', 'BRACHANTG', 'ABRAPOSTG', 'ABRANTG', 'ULNAG', 'RADIUSG'], 'dofs': range(26, 28)},
-        'left_hand': {'markers': ['METAC5G', 'METAC2G', 'MIDMETAC3G'], 'dofs': range(28, 30)},
-        'right_thigh': {'markers': ['ISCHIO1D', 'TFLD', 'ISCHIO2D', 'CONDEXTD', 'CONDINTD'], 'dofs': range(30, 33)},
-        'right_leg': {'markers': ['CRETED', 'JAMBLATD', 'TUBD', 'ACHILED', 'MALEXTD', 'MALINTD'], 'dofs': range(33, 34)},
-        'right_foot': {'markers': ['CALCD', 'MIDMETA4D', 'MIDMETA1D', 'SCAPHOIDED', 'METAT5D', 'METAT1D'], 'dofs': range(34, 36)},
-        'left_thigh': {'markers': ['ISCHIO1G', 'TFLG', 'ISCHIO2G', 'CONEXTG', 'CONDINTG'], 'dofs': range(36, 39)},
-        'left_leg': {'markers': ['CRETEG', 'JAMBLATG', 'TUBG', 'ACHILLEG', 'MALEXTG', 'MALINTG', 'CALCG'], 'dofs': range(39, 40)},
-        'left_foot': {'markers': ['MIDMETA4G', 'MIDMETA1G', 'SCAPHOIDEG', 'METAT5G', 'METAT1G'], 'dofs': range(40, 42)},
-    }
-
-    markers_idx_ref = []
-    if broken_dofs is not None:
-        for dof in broken_dofs:
-            for segment in model_segments.values():
-                if dof in segment['dofs']:
-                    marker_positions = [index_model for marker_label in segment['markers'] for index_model, model_label in enumerate(model_labels) if marker_label in model_label]
-                    if range(min(marker_positions), max(marker_positions) + 1) not in markers_idx_ref:
-                        markers_idx_ref.append(range(min(marker_positions), max(marker_positions) + 1))
-
     ocp = prepare_ocp(
         biorbd_model=biorbd_model, final_time=duration, number_shooting_points=adjusted_number_shooting_points,
         q_ref=q_ref, qdot_ref=qdot_ref, tau_init=tau_ref, markers_ref=markers_rotated, markers_idx_ref=markers_idx_ref,
-        states_idx_ref=states_idx_range_list,
+        states_idx_ref=states_idx_range_list, broken_dofs=broken_dofs,
         xmin=xmin, xmax=xmax,
         min_g=[0, -np.pi/16], max_g=[2*np.pi, np.pi/16],
     )

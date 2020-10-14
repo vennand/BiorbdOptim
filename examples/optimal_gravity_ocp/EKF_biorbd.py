@@ -6,6 +6,7 @@ import ezc3d
 import os
 import pickle
 from load_data_filename import load_data_filename
+from reorder_markers import reorder_markers
 
 
 #
@@ -20,12 +21,12 @@ from load_data_filename import load_data_filename
 # Please also note that kalman will be VERY slow if compiled in debug
 #
 
-# subject = 'DoCi'
+subject = 'DoCi'
 # subject = 'JeCh'
 # subject = 'BeLa'
 # subject = 'GuSe'
-subject = 'SaMi'
-trial = '821_822_4'
+# subject = 'SaMi'
+trial = '822'
 
 data_path = '/home/andre/Optimisation/data/' + subject + '/'
 model_path = data_path + 'Model/'
@@ -40,31 +41,8 @@ frames = data_filename['frames']
 biorbd_model = biorbd.Model(model_path + model_name)
 c3d = ezc3d.c3d(c3d_path + c3d_name)
 
-markers = c3d['data']['points'][:3, :95, frames.start:frames.stop]/1000  # XYZ1 x markers x time_frame
-c3d_labels = c3d['parameters']['POINT']['LABELS']['value'][:95]
-model_labels = [label.to_string() for label in biorbd_model.markerNames()]
-# labels_index = [index_c3d for label in model_labels for index_c3d, c3d_label in enumerate(c3d_labels) if label in c3d_label]
+markers_reordered, _ = reorder_markers(biorbd_model, c3d, frames)
 
-### --- Test --- ###
-labels_index = []
-missing_markers_index = []
-for index_model, model_label in enumerate(model_labels):
-    missing_markers_bool = True
-    for index_c3d, c3d_label in enumerate(c3d_labels):
-        if model_label in c3d_label:
-            labels_index.append(index_c3d)
-            missing_markers_bool = False
-    if missing_markers_bool:
-        labels_index.append(index_model)
-        missing_markers_index.append(index_model)
-### --- Test --- ###
-
-markers_reordered = np.zeros((3, markers.shape[1], markers.shape[2]))
-for index, label_index in enumerate(labels_index):
-    if index in missing_markers_index:
-        markers_reordered[:, index, :] = np.nan
-    else:
-        markers_reordered[:, index, :] = markers[:, label_index, :]
 markers_reordered[np.isnan(markers_reordered)] = 0.0  # Remove NaN
 
 # Dispatch markers in biorbd structure so EKF can use it

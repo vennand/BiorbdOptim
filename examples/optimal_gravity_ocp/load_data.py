@@ -6,6 +6,7 @@ from casadi import MX, Function
 import pickle
 import os
 from load_data_filename import load_data_filename
+from adjust_number_shooting_points import adjust_number_shooting_points
 
 from biorbd_optim import (
     OptimalControlProgram,
@@ -48,25 +49,20 @@ def states_to_markers(biorbd_model, ocp, states):
 
 
 if __name__ == "__main__":
-    # subject = 'DoCi'
+    subject = 'DoCi'
     # subject = 'JeCh'
     # subject = 'BeLa'
     # subject = 'GuSe'
-    subject = 'SaMi'
+    # subject = 'SaMi'
     number_shooting_points = 100
-    trial = '821_seul_5'
+    trial = '822'
 
     data_filename = load_data_filename(subject, trial)
     c3d_name = data_filename['c3d']
     frames = data_filename['frames']
 
     # --- Adjust number of shooting points --- #
-    list_adjusted_number_shooting_points = []
-    for frame_num in range(1, (frames.stop - frames.start - 1) // frames.step + 1):
-        list_adjusted_number_shooting_points.append((frames.stop - frames.start - 1) // frame_num + 1)
-    diff_shooting_points = [abs(number_shooting_points - point) for point in list_adjusted_number_shooting_points]
-    step_size = diff_shooting_points.index(min(diff_shooting_points)) + 1
-    adjusted_number_shooting_points = ((frames.stop - frames.start - 1) // step_size + 1) - 1
+    adjusted_number_shooting_points, step_size = adjust_number_shooting_points(number_shooting_points, frames)
 
     # --- Load --- #
     # load_name = "Do_822_contact_2_optimal_gravity_N" + str(number_shooting_points)
@@ -76,23 +72,25 @@ if __name__ == "__main__":
     ocp, sol = OptimalControlProgram.load(load_name + '.bo')
 
     # --- Get the results --- #
-    states, controls, params = Data.get_data(ocp, sol, get_parameters=True)
-    angle = params["gravity_angle"]/np.pi*180
-    print('Number of shooting points: ', number_shooting_points)
-    print('Gravity rotation: ', angle)
+    # states, controls, params = Data.get_data(ocp, sol, get_parameters=True)
+    # angle = params["gravity_angle"]/np.pi*180
+    # print('Number of shooting points: ', number_shooting_points)
+    # print('Gravity rotation: ', angle)
 
-    gravity = biorbd.to_casadi_func("test", ocp.nlp[0]['model'].getGravity)
-    print('Gravity: ', gravity())
+    states, controls = Data.get_data(ocp, sol)
+
+    # gravity = biorbd.to_casadi_func("test", ocp.nlp[0]['model'].getGravity)
+    # print('Gravity: ', gravity())
 
     save_variables_name = load_name + ".pkl"
     with open(save_variables_name, 'wb') as handle:
-        pickle.dump({'states': states, 'controls': controls, 'params': params},
+        pickle.dump({'states': states, 'controls': controls},#, 'params': params},
                     handle, protocol=3)
 
-    data_path = '/home/andre/Optimisation/data/' + subject + '/'
-    kalman_path = data_path + 'Q/'
-    q_name = 'Sa_821_822_2_MOD200.00_GenderF_SaMig_Q.mat'
-    q_ref = loadmat(kalman_path + q_name)['Q2']
+    # data_path = '/home/andre/Optimisation/data/' + subject + '/'
+    # kalman_path = data_path + 'Q/'
+    # q_name = 'Sa_821_822_2_MOD200.00_GenderF_SaMig_Q.mat'
+    # q_ref = loadmat(kalman_path + q_name)['Q2']
 
 
     # q = MX.sym("Q", ocp.nlp[0]['model'].nbQ(), 1)
@@ -104,6 +102,36 @@ if __name__ == "__main__":
     #
     # qddot = fd(states['q'], states['q_dot'], controls['tau'])
     # momentum = am(states['q'], states['q_dot'], qddot)
+
+    # from matplotlib import pyplot
+    # from matplotlib.lines import Line2D
+    #
+    # dofs = [range(0, 6), range(6, 9), range(9, 12),
+    #         range(12, 14), range(14, 17), range(17, 19), range(19, 21),
+    #         range(21, 23), range(23, 26), range(26, 28), range(28, 30),
+    #         range(30, 33), range(33, 34), range(34, 36),
+    #         range(36, 39), range(39, 40), range(40, 42),
+    #         ]
+    # dofs_name = ['Pelvis', 'Thorax', 'Head',
+    #              'Right shoulder', 'Right arm', 'Right forearm', 'Right hand',
+    #              'Left shoulder', 'Left arm', 'Left forearm', 'Left hand',
+    #              'Right thigh', 'Right leg', 'Right foot',
+    #              'Left thigh', 'Left leg', 'Left foot',
+    #              ]
+    # # dofs = range(0, 6)
+    # for idx_dof, dof in enumerate(dofs):
+    #     fig = pyplot.figure()
+    #     # pyplot.plot(states_kalman['q'][dof, :].T, color='blue')
+    #     pyplot.plot(controls['tau'][dof, :].T, color='red')
+    #     # pyplot.plot(states['q'][dof, :].T, color='green')
+    #
+    #     pyplot.title(dofs_name[idx_dof])
+    #     # lm_kalman = Line2D([0, 1], [0, 1], linestyle='-', color='blue')
+    #     # lm_OGE = Line2D([0, 1], [0, 1], linestyle='-', color='red')
+    #     lm_OE = Line2D([0, 1], [0, 1], linestyle='-', color='green')
+    #     pyplot.legend([lm_OE], ['OE'])
+    #
+    # pyplot.show()
 
     # --- Show results --- #
     ShowResult(ocp, sol).animate(nb_frames=adjusted_number_shooting_points)

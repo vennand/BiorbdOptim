@@ -5,6 +5,7 @@ from scipy.io import loadmat
 import time
 from casadi import MX, Function
 import os
+import pickle
 from matplotlib import pyplot
 from mpl_toolkits.mplot3d import Axes3D
 from load_data_filename import load_data_filename
@@ -32,12 +33,12 @@ def rotating_gravity(biorbd_model, value):
     biorbd_model.setGravity(gravity)
 
 
-# subject = 'DoCi'
+subject = 'DoCi'
 # subject = 'JeCh'
 # subject = 'BeLa'
 # subject = 'GuSe'
-subject = 'SaMi'
-trial = '821_seul_1'
+# subject = 'SaMi'
+trial = '822'
 number_shooting_points = 100
 
 data_path = '/home/andre/Optimisation/data/' + subject + '/'
@@ -63,9 +64,20 @@ adjusted_number_shooting_points = ((frames.stop - frames.start - 1) // step_size
 
 biorbd_model = biorbd.Model(model_path + model_name)
 c3d = ezc3d.c3d(c3d_path + c3d_name)
-# q_ref = loadmat(kalman_path + q_name)['Q2']
-# qdot_ref = loadmat(kalman_path + qd_name)['V2']
-# qddot_ref = loadmat(kalman_path + qdd_name)['A2']
+
+### Matlab EKF ###
+# q_ref = loadmat(kalman_path + q_name)['Q2'][:, frames.start:frames.stop:step_size]
+# qdot_ref = loadmat(kalman_path + qd_name)['V2'][:, frames.start:frames.stop:step_size]
+# qddot_ref = loadmat(kalman_path + qdd_name)['A2'][:, frames.start:frames.stop:step_size]
+
+### Biorbd EKF ###
+# load_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
+# load_variables_name = load_path + subject + '/Kalman/' + os.path.splitext(c3d_name)[0] + ".pkl"
+# with open(load_variables_name, 'rb') as handle:
+#     kalman_states = pickle.load(handle)
+# q_ref = kalman_states['q'][:, ::step_size]
+
+### OGE .bo ###
 load_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
 load_name = load_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF'
 ocp, sol = OptimalControlProgram.load(load_name + '.bo')
@@ -81,10 +93,31 @@ biorbd_model.setGravity(biorbd.Vector3d(0, 0, -9.80639))
 markers_mocap = c3d['data']['points'][:3, :95, frames.start:frames.stop:step_size] / 1000
 c3d_labels = c3d['parameters']['POINT']['LABELS']['value'][:95]
 model_labels = [label.to_string() for label in biorbd_model.markerNames()]
-labels_index = [index_c3d for label in model_labels for index_c3d, c3d_label in enumerate(c3d_labels) if label in c3d_label]
-markers_reordered = np.zeros((3, len(labels_index), markers_mocap.shape[2]))
+# labels_index = [index_c3d for label in model_labels for index_c3d, c3d_label in enumerate(c3d_labels) if label in c3d_label]
+
+### --- Test --- ###
+labels_index = []
+missing_markers_index = []
+for index_model, model_label in enumerate(model_labels):
+    missing_markers_bool = True
+    for index_c3d, c3d_label in enumerate(c3d_labels):
+        if model_label in c3d_label:
+            labels_index.append(index_c3d)
+            missing_markers_bool = False
+    if missing_markers_bool:
+        labels_index.append(index_model)
+        missing_markers_index.append(index_model)
+### --- Test --- ###
+
+# markers_reordered = np.zeros((3, len(labels_index), markers.shape[2]))
+# for index, label_index in enumerate(labels_index):
+#     markers_reordered[:, index, :] = markers[:, label_index, :]
+markers_reordered = np.zeros((3, markers_mocap.shape[1], markers_mocap.shape[2]))
 for index, label_index in enumerate(labels_index):
-    markers_reordered[:, index, :] = markers_mocap[:, label_index, :]
+    if index in missing_markers_index:
+        markers_reordered[:, index, :] = np.nan
+    else:
+        markers_reordered[:, index, :] = markers_mocap[:, label_index, :]
 
 
 markers = np.ndarray((3, markers_mocap.shape[1], q_ref.shape[1]))
@@ -98,12 +131,12 @@ ax = Axes3D(fig)
 
 
 for frame in range(markers.shape[2]):
-    ax.scatter(markers[0, :, frame], markers[1, :, frame], markers[2, :, frame])
-    ax.scatter(markers_reordered[0, :, frame], markers_reordered[1, :, frame], markers_reordered[2, :, frame])
+    ax.scatter(markers[0, :, frame], markers[1, :, frame], markers[2, :, frame], color='blue')
+    ax.scatter(markers_reordered[0, :, frame], markers_reordered[1, :, frame], markers_reordered[2, :, frame], color='orange')
     ax.set_xlim3d(-2, 2)
     ax.set_ylim3d(-2, 2)
     ax.set_zlim3d(0, 2)
-    pyplot.pause(0.01)
+    pyplot.pause(0.001)
     pyplot.draw()
     ax.clear()
     print(frame)

@@ -3,13 +3,15 @@ import numpy as np
 import ezc3d
 from scipy.io import loadmat
 import time
-from casadi import MX
+from casadi import MX, Function
 import pickle
 import os
 import sys
 sys.path.insert(1, '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp')
 from load_data_filename import load_data_filename
 from x_bounds import x_bounds
+from adjust_number_shooting_points import adjust_number_shooting_points
+from reorder_markers import reorder_markers
 
 from biorbd_optim import (
     OptimalControlProgram,
@@ -70,7 +72,7 @@ def inverse_dynamics(biorbd_model, q_ref, qd_ref, qdd_ref):
 
 def prepare_ocp(biorbd_model, final_time, number_shooting_points, markers_ref, q_init, qdot_init, tau_init, xmin, xmax):
     # --- Options --- #
-    torque_min, torque_max = -150, 150
+    torque_min, torque_max = -1500, 1500
     n_q = biorbd_model.nbQ()
     n_qdot = biorbd_model.nbQdot()
     n_tau = biorbd_model.nbGeneralizedTorque()
@@ -147,14 +149,13 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, markers_ref, q
 
 if __name__ == "__main__":
     start = time.time()
-    # subject = 'DoCi'
+    subject = 'DoCi'
     # subject = 'JeCh'
     # subject = 'BeLa'
     # subject = 'GuSe'
-    subject = 'SaMi'
+    # subject = 'SaMi'
     number_shooting_points = 100
-    trial = '821_seul_1'
-    use_OGE = True
+    trial = '822'
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
     model_path = data_path + 'Model/'
@@ -174,73 +175,28 @@ if __name__ == "__main__":
 
     biorbd_model.setGravity(biorbd.Vector3d(0, 0, -9.80639))
 
-    # Adjust number of shooting points
-    list_adjusted_number_shooting_points = []
-    for frame_num in range(1, (frames.stop - frames.start - 1) // frames.step + 1):
-        list_adjusted_number_shooting_points.append((frames.stop - frames.start - 1) // frame_num + 1)
-    diff_shooting_points = [abs(number_shooting_points - point) for point in list_adjusted_number_shooting_points]
-    step_size = diff_shooting_points.index(min(diff_shooting_points)) + 1
-    adjusted_number_shooting_points = ((frames.stop - frames.start - 1) // step_size + 1) - 1
+    # --- Adjust number of shooting points --- #
+    adjusted_number_shooting_points, step_size = adjust_number_shooting_points(number_shooting_points, frames)
 
     frequency = c3d['header']['points']['frame_rate']
     duration = len(frames) / frequency
 
-    if use_OGE:
-        optimal_gravity_filename = '../optimal_gravity_ocp/Solutions/' + subject + '/' + os.path.splitext(c3d_name)[0] + '_optimal_gravity_N' + str(adjusted_number_shooting_points) + '_mixed_EKF' + ".bo"
-        ocp_optimal_gravity, sol_optimal_gravity = OptimalControlProgram.load(optimal_gravity_filename)
-        states_optimal_gravity, controls_optimal_gravity, params_optimal_gravity = Data.get_data(ocp_optimal_gravity, sol_optimal_gravity, get_parameters=True)
+    optimal_gravity_filename = '../optimal_gravity_ocp/Solutions/' + subject + '/' + os.path.splitext(c3d_name)[0] + '_optimal_gravity_N' + str(adjusted_number_shooting_points) + '_mixed_EKF' + ".bo"
+    ocp_optimal_gravity, sol_optimal_gravity = OptimalControlProgram.load(optimal_gravity_filename)
+    states_optimal_gravity, controls_optimal_gravity, params_optimal_gravity = Data.get_data(ocp_optimal_gravity, sol_optimal_gravity, get_parameters=True)
 
-        angle = params_optimal_gravity["gravity_angle"].squeeze()
-        q_ref = states_optimal_gravity['q']
-        qdot_ref = states_optimal_gravity['q_dot']
-        tau_ref = controls_optimal_gravity['tau'][:, :-1]
+    angle = params_optimal_gravity["gravity_angle"].squeeze()
+    q_ref = states_optimal_gravity['q']
+    qdot_ref = states_optimal_gravity['q_dot']
+    tau_ref = controls_optimal_gravity['tau'][:, :-1]
 
-        rotating_gravity(biorbd_model, angle)
-    else:
-        q_ref = loadmat(kalman_path + q_name)['Q2'][:, frames.start:frames.stop:step_size]
-        qdot_ref = loadmat(kalman_path + qd_name)['V2'][:, frames.start:frames.stop:step_size]
-        qddot_ref = loadmat(kalman_path + qdd_name)['A2'][:, frames.start:frames.stop:step_size]
-        tau_ref = inverse_dynamics(biorbd_model, q_ref, qdot_ref, qddot_ref)
-
-        # load_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
-        # load_variables_name = load_path + subject + '/Kalman/' + os.path.splitext(c3d_name)[0] + ".pkl"
-        # with open(load_variables_name, 'rb') as handle:
-        #     kalman_states = pickle.load(handle)
-        # q_ref = kalman_states['q']
-        # qdot_ref = kalman_states['qd']
-        # qddot_ref = kalman_states['qdd']
-
+    rotating_gravity(biorbd_model, angle)
+    # print_gravity = Function('print_gravity', [], [biorbd_model.getGravity().to_mx()], [], ['gravity'])
+    # print(print_gravity()['print_gravity'].full()
 
     xmin, xmax = x_bounds(biorbd_model)
 
-    markers = c3d['data']['points'][:3, :95, frames.start:frames.stop:step_size] / 1000
-    c3d_labels = c3d['parameters']['POINT']['LABELS']['value'][:95]
-    model_labels = [label.to_string() for label in biorbd_model.markerNames()]
-    # labels_index = [index_c3d for label in model_labels for index_c3d, c3d_label in enumerate(c3d_labels) if label in c3d_label]
-
-    ### --- Test --- ###
-    labels_index = []
-    missing_markers_index = []
-    for index_model, model_label in enumerate(model_labels):
-        missing_markers_bool = True
-        for index_c3d, c3d_label in enumerate(c3d_labels):
-            if model_label in c3d_label:
-                labels_index.append(index_c3d)
-                missing_markers_bool = False
-        if missing_markers_bool:
-            labels_index.append(index_model)
-            missing_markers_index.append(index_model)
-    ### --- Test --- ###
-
-    # markers_reordered = np.zeros((3, len(labels_index), markers.shape[2]))
-    # for index, label_index in enumerate(labels_index):
-    #     markers_reordered[:, index, :] = markers[:, label_index, :]
-    markers_reordered = np.zeros((3, markers.shape[1], markers.shape[2]))
-    for index, label_index in enumerate(labels_index):
-        if index in missing_markers_index:
-            markers_reordered[:, index, :] = np.nan
-        else:
-            markers_reordered[:, index, :] = markers[:, label_index, :]
+    markers_reordered, _ = reorder_markers(biorbd_model, c3d, frames, step_size)
 
     # markers_rotated = np.zeros(markers.shape)
     # for frame in range(markers.shape[2]):
@@ -254,25 +210,26 @@ if __name__ == "__main__":
     )
 
     # --- Solve the program --- #
-    options = {"max_iter": 3000, "tol": 1e-4, "constr_viol_tol": 1e-2, "linear_solver": "ma57"}
+    options = {"max_iter": 3000, "tol": 1e-6, "constr_viol_tol": 1e-3, "linear_solver": "ma57"}
     sol = ocp.solve(solver=Solver.IPOPT, solver_options=options, show_online_optim=False)
+
+    # --- Get the results --- #
+    states, controls = Data.get_data(ocp, sol)
 
     # --- Save --- #
     # save_name = "Do_822_contact_2" + "_optimal_estimation_N" + str(adjusted_number_shooting_points)# + "_variable_weights" # + "_U10-5"
     save_path = '/home/andre/BiorbdOptim/examples/optimal_estimation_ocp/Solutions/'
-    if use_OGE:
-        save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points)
-    else:
-        save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_bad_EKF'
+    save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points)
     ocp.save(sol, save_name + ".bo")
+
+    get_gravity = Function('print_gravity', [], [biorbd_model.getGravity().to_mx()], [], ['gravity'])
+    gravity = get_gravity()['gravity'].full()
 
     save_variables_name = save_name + ".pkl"
     with open(save_variables_name, 'wb') as handle:
-        pickle.dump({'mocap': markers_rotated, 'duration': duration, 'frames': frames, 'step_size': step_size},
+        pickle.dump({'mocap': markers_rotated, 'duration': duration, 'frames': frames, 'step_size': step_size,
+                     'states': states, 'controls': controls, 'gravity': gravity, 'gravity_angle': angle},
                     handle, protocol=3)
-
-    # --- Get the results --- #
-    states, controls = Data.get_data(ocp, sol)
 
     stop = time.time()
     print('Number of shooting points: ', adjusted_number_shooting_points)

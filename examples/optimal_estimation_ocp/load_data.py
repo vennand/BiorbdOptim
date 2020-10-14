@@ -8,7 +8,8 @@ import os
 import sys
 sys.path.insert(1, '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp')
 from load_data_filename import load_data_filename
-from x_bounds import x_bounds
+from adjust_number_shooting_points import adjust_number_shooting_points
+from reorder_markers import reorder_markers
 
 from biorbd_optim import (
     OptimalControlProgram,
@@ -73,13 +74,13 @@ def dynamics(biorbd_model, q_ref, qd_ref, qdd_ref=None, tau_ref=None):
 
 
 if __name__ == "__main__":
-    # subject = 'DoCi'
+    subject = 'DoCi'
     # subject = 'JeCh'
     # subject = 'BeLa'
     # subject = 'GuSe'
-    subject = 'SaMi'
+    # subject = 'SaMi'
     number_shooting_points = 100
-    trial = '821_seul_1'
+    trial = '822'
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
     model_path = data_path + 'Model/'
@@ -97,6 +98,9 @@ if __name__ == "__main__":
     biorbd_model = biorbd.Model(model_path + model_name)
     biorbd_model.setGravity(biorbd.Vector3d(0, 0, -9.80639))
 
+    # --- Adjust number of shooting points --- #
+    adjusted_number_shooting_points, step_size = adjust_number_shooting_points(number_shooting_points, frames)
+
     # --- Functions --- #
     q = MX.sym("Q", biorbd_model.nbQ(), 1)
     qdot = MX.sym("Qdot", biorbd_model.nbQdot(), 1)
@@ -112,7 +116,7 @@ if __name__ == "__main__":
 
     # --- Load --- #
     load_path = '/home/andre/BiorbdOptim/examples/optimal_estimation_ocp/Solutions/'
-    load_name = load_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(number_shooting_points)
+    load_name = load_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points)
     ocp, sol = OptimalControlProgram.load(load_name + ".bo")
 
     load_variables_name = load_name + ".pkl"
@@ -124,7 +128,7 @@ if __name__ == "__main__":
     step_size = data['step_size']
 
     load_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
-    optimal_gravity_filename = load_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(number_shooting_points) + '_mixed_EKF' + ".bo"
+    optimal_gravity_filename = load_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF' + ".bo"
     # optimal_gravity_EndChainMarkers_filename = "../optimal_gravity_ocp/Solutions/DoCi/Do_822_contact_2_optimal_gravity_N" + str(number_shooting_points) + "_EndChainMarkers.bo"
 
     q_kalman = loadmat(kalman_path + q_name)['Q2'][:, frames.start:frames.stop:step_size]
@@ -133,6 +137,16 @@ if __name__ == "__main__":
 
     states_kalman = {'q': q_kalman, 'q_dot': qdot_kalman}
     controls_kalman = {'tau': id(q_kalman, qdot_kalman, qddot_kalman)}
+
+    load_variables_name = load_path + subject + '/Kalman/' + os.path.splitext(c3d_name)[0] + ".pkl"
+    with open(load_variables_name, 'rb') as handle:
+        kalman_states = pickle.load(handle)
+    q_kalman_biorbd = kalman_states['q'][:, ::step_size]
+    qdot_kalman_biorbd = kalman_states['qd'][:, ::step_size]
+    qddot_kalman_biorbd = kalman_states['qdd'][:, ::step_size]
+
+    states_kalman_biorbd = {'q': q_kalman_biorbd, 'q_dot': qdot_kalman_biorbd}
+    controls_kalman_biorbd = {'tau': id(q_kalman_biorbd, qdot_kalman_biorbd, qddot_kalman_biorbd)}
 
     # --- Get the results --- #
     states, controls = Data.get_data(ocp, sol)
@@ -153,6 +167,7 @@ if __name__ == "__main__":
     markers_optimal_gravity = states_to_markers(biorbd_model, ocp, states_optimal_gravity)
     # markers_optimal_gravity_EndChainMarkers = states_to_markers(biorbd_model, ocp, states_optimal_gravity_EndChainMarkers)
     markers_kalman = states_to_markers(biorbd_model, ocp, states_kalman)
+    markers_kalman_biorbd = states_to_markers(biorbd_model, ocp, states_kalman_biorbd)
 
     # --- Stats --- #
     #OE
@@ -187,9 +202,18 @@ if __name__ == "__main__":
             np.nanstd([np.sqrt(np.sum((markers_kalman[:, i, j] - markers_mocap[:, i, j]) ** 2))
                 for i in range(markers_mocap.shape[1]) for j in range(markers_mocap.shape[2])])*1000)
 
+    # EKF biorbd
+    average_distance_between_markers_kalman_biorbd = (
+            np.nanmean([np.sqrt(np.sum((markers_kalman_biorbd[:, i, j] - markers_mocap[:, i, j]) ** 2))
+                for i in range(markers_mocap.shape[1]) for j in range(markers_mocap.shape[2])])*1000)
+    sd_distance_between_markers_kalman_biorbd = (
+            np.nanstd([np.sqrt(np.sum((markers_kalman_biorbd[:, i, j] - markers_mocap[:, i, j]) ** 2))
+                for i in range(markers_mocap.shape[1]) for j in range(markers_mocap.shape[2])])*1000)
+
     print('Number of shooting points: ', number_shooting_points)
     print('Average marker error')
     print('Kalman: ', average_distance_between_markers_kalman, u"\u00B1", sd_distance_between_markers_kalman)
+    print('Kalman biorbd: ', average_distance_between_markers_kalman_biorbd, u"\u00B1", sd_distance_between_markers_kalman_biorbd)
     print('Optimal gravity: ', average_distance_between_markers_optimal_gravity, u"\u00B1", sd_distance_between_markers_optimal_gravity)
     # print('Optimal gravity with end chain markers: ', average_distance_between_markers_optimal_gravity_EndChainMarkers, u"\u00B1", sd_distance_between_markers_optimal_gravity_EndChainMarkers)
     print('Estimation: ', average_distance_between_markers, u"\u00B1", sd_distance_between_markers)
@@ -288,7 +312,7 @@ if __name__ == "__main__":
     lm_oe = Line2D([0, 1], [0, 1], linestyle='-', color='blue')
     lm_og = Line2D([0, 1], [0, 1], linestyle=':', color='orange')
     lm_kal = Line2D([0, 1], [0, 1], linestyle='-', color='green')
-    pyplot.legend([lm_oe, lm_og, lm_kal], ['Estimation', 'Optimal gravity', 'Kalman'])
+    pyplot.legend([lm_oe, lm_og, lm_kal], ['OE', 'OGE', 'Kalman'])
     pyplot.title('Linear momentum of free fall movement')
 
     pyplot.annotate('x', (linear_momentum.shape[1] - 1, linear_momentum.full().T[-1, 0]), textcoords="offset points", xytext=(0, 10), ha='center')
@@ -313,7 +337,40 @@ if __name__ == "__main__":
 
     # pyplot.savefig('Linear_momentum_N' + str(number_shooting_points) + '.png')
 
+    dofs = [range(0, 6), range(6, 9), range(9, 12),
+            range(12, 14), range(14, 17), range(17, 19), range(19, 21),
+            range(21, 23), range(23, 26), range(26, 28), range(28, 30),
+            range(30, 33), range(33, 34), range(34, 36),
+            range(36, 39), range(39, 40), range(40, 42),
+            ]
+    dofs_name = ['Pelvis', 'Thorax', 'Head',
+                 'Right shoulder', 'Right arm', 'Right forearm', 'Right hand',
+                 'Left shoulder', 'Left arm', 'Left forearm', 'Left hand',
+                 'Right thigh', 'Right leg', 'Right foot',
+                 'Left thigh', 'Left leg', 'Left foot',
+                 ]
+    # dofs = range(0, 6)
+    for idx_dof, dof in enumerate(dofs):
+        fig = pyplot.figure()
+        pyplot.plot(states_kalman['q'][dof, :].T, color='blue')
+        pyplot.plot(states_optimal_gravity['q'][dof, :].T, color='red')
+        pyplot.plot(states['q'][dof, :].T, color='green')
+
+        # fig = pyplot.figure()
+        # pyplot.plot(qdot_ref_matlab[dof, :].T, color='blue')
+        # pyplot.plot(qdot_ref_biorbd[dof, :].T, color='red')
+        #
+        # fig = pyplot.figure()
+        # pyplot.plot(qddot_ref_matlab[dof, :].T, color='blue')
+        # pyplot.plot(qddot_ref_biorbd[dof, :].T, color='red')
+
+        pyplot.title(dofs_name[idx_dof])
+        lm_kalman = Line2D([0, 1], [0, 1], linestyle='-', color='blue')
+        lm_OGE = Line2D([0, 1], [0, 1], linestyle='-', color='red')
+        lm_OE = Line2D([0, 1], [0, 1], linestyle='-', color='green')
+        pyplot.legend([lm_kalman, lm_OGE, lm_OE], ['Kalman', 'OGE', 'OE'])
+
     pyplot.show()
 
     # --- Show results --- #
-    ShowResult(ocp, sol).animate(nb_frames=number_shooting_points)
+    ShowResult(ocp, sol).animate(nb_frames=adjusted_number_shooting_points)
