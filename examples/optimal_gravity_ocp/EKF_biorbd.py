@@ -21,12 +21,12 @@ from reorder_markers import reorder_markers
 # Please also note that kalman will be VERY slow if compiled in debug
 #
 
-subject = 'DoCi'
+# subject = 'DoCi'
 # subject = 'JeCh'
 # subject = 'BeLa'
 # subject = 'GuSe'
-# subject = 'SaMi'
-trial = '822'
+subject = 'SaMi'
+trial = '821_822_5'
 
 data_path = '/home/andre/Optimisation/data/' + subject + '/'
 model_path = data_path + 'Model/'

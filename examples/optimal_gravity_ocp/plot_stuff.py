@@ -108,13 +108,13 @@ def correct_Kalman(biorbd_model, q):
     return q_corrected
 
 
-subject = 'DoCi'
+# subject = 'DoCi'
 # subject = 'JeCh'
 # subject = 'BeLa'
 # subject = 'GuSe'
-# subject = 'SaMi'
+subject = 'SaMi'
 number_shooting_points = 100
-trial = '822'
+trial = '821_822_5'
 
 data_path = '/home/andre/Optimisation/data/' + subject + '/'
 model_path = data_path + 'Model/'
@@ -197,7 +197,7 @@ for idx_dof, dof in enumerate(dofs):
     fig = pyplot.figure()
     # pyplot.plot(q_ref_matlab[dof, :].T, color='blue')
     # pyplot.plot(q_ref_biorbd[dof, :].T, color='red')
-    pyplot.plot(q_corrected_matlab[dof, :].T, color='blue')
+    # pyplot.plot(q_corrected_matlab[dof, :].T, color='blue')
     pyplot.plot(q_corrected_biorbd[dof, :].T, color='red')
     pyplot.plot(q_corrected[dof, :].T, linestyle='--', color='black')
     # pyplot.plot(q_ref_OGE[dof, :].T, color='green')
@@ -218,6 +218,5 @@ for idx_dof, dof in enumerate(dofs):
     lm_OGE = Line2D([0, 1], [0, 1], linestyle='-', color='green')
     lm_OGE_mixed = Line2D([0, 1], [0, 1], linestyle='-', color='orange')
     pyplot.legend([lm_matlab, lm_biorbd, lm_OGE, lm_OGE_mixed], ['Matlab', 'Biorbd', 'OGE', 'OGE mixed'])
-
 
 pyplot.show()

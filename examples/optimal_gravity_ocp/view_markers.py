@@ -9,6 +9,8 @@ import pickle
 from matplotlib import pyplot
 from mpl_toolkits.mplot3d import Axes3D
 from load_data_filename import load_data_filename
+from adjust_number_shooting_points import adjust_number_shooting_points
+from reorder_markers import reorder_markers
 
 from biorbd_optim import (
     OptimalControlProgram,
@@ -28,17 +30,16 @@ def rotating_gravity(biorbd_model, value):
     # used to modify it,  the size of which decribed by the value `size` in the parameter definition.
     # The rest of the parameter are defined by the user in the parameter
     gravity = biorbd_model.getGravity()
-    gravity.applyRT(
-        biorbd.RotoTrans.combineRotAndTrans(biorbd.Rotation.fromEulerAngles(value, 'zx'), biorbd.Vector3d()))
+    gravity.applyRT(biorbd.RotoTrans.combineRotAndTrans(biorbd.Rotation.fromEulerAngles(value, 'zx'), biorbd.Vector3d()))
     biorbd_model.setGravity(gravity)
 
 
-subject = 'DoCi'
+# subject = 'DoCi'
 # subject = 'JeCh'
 # subject = 'BeLa'
 # subject = 'GuSe'
-# subject = 'SaMi'
-trial = '822'
+subject = 'SaMi'
+trial = '821_seul_1'
 number_shooting_points = 100
 
 data_path = '/home/andre/Optimisation/data/' + subject + '/'
@@ -55,15 +56,12 @@ qdd_name = data_filename['qdd']
 frames = data_filename['frames']
 
 # --- Adjust number of shooting points --- #
-list_adjusted_number_shooting_points = []
-for frame_num in range(1, (frames.stop - frames.start - 1) // frames.step + 1):
-    list_adjusted_number_shooting_points.append((frames.stop - frames.start - 1) // frame_num + 1)
-diff_shooting_points = [abs(number_shooting_points - point) for point in list_adjusted_number_shooting_points]
-step_size = diff_shooting_points.index(min(diff_shooting_points)) + 1
-adjusted_number_shooting_points = ((frames.stop - frames.start - 1) // step_size + 1) - 1
+adjusted_number_shooting_points, step_size = adjust_number_shooting_points(number_shooting_points, frames)
 
 biorbd_model = biorbd.Model(model_path + model_name)
 c3d = ezc3d.c3d(c3d_path + c3d_name)
+
+biorbd_model.setGravity(biorbd.Vector3d(0, 0, -9.80639))
 
 ### Matlab EKF ###
 # q_ref = loadmat(kalman_path + q_name)['Q2'][:, frames.start:frames.stop:step_size]
@@ -78,52 +76,34 @@ c3d = ezc3d.c3d(c3d_path + c3d_name)
 # q_ref = kalman_states['q'][:, ::step_size]
 
 ### OGE .bo ###
-load_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
-load_name = load_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF'
-ocp, sol = OptimalControlProgram.load(load_name + '.bo')
-states, controls, params = Data.get_data(ocp, sol, get_parameters=True)
-q_ref = states['q']
-rotating_gravity(biorbd_model, params["gravity_angle"].squeeze())
+# load_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
+# load_name = load_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF'
+# ocp, sol = OptimalControlProgram.load(load_name + '.bo')
+# states, controls, params = Data.get_data(ocp, sol, get_parameters=True)
+# q_ref = states['q']
+# gravity_angle = params["gravity_angle"].squeeze()
+# rotating_gravity(biorbd_model, gravity_angle)
+
+### OE ###
+load_path = '/home/andre/BiorbdOptim/examples/optimal_estimation_ocp/Solutions/'
+load_name = load_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points)
+load_variables_name = load_name + ".pkl"
+with open(load_variables_name, 'rb') as handle:
+    data = pickle.load(handle)
+q_ref = data['states']['q']
+gravity_angle = data['gravity_angle']
+rotating_gravity(biorbd_model, gravity_angle)
 
 frequency = 200
 # q_ref, qdot_ref, qddot_ref = correct_Kalman(q_ref, qdot_ref, qddot_ref, frequency)
 
-biorbd_model.setGravity(biorbd.Vector3d(0, 0, -9.80639))
-
-markers_mocap = c3d['data']['points'][:3, :95, frames.start:frames.stop:step_size] / 1000
-c3d_labels = c3d['parameters']['POINT']['LABELS']['value'][:95]
-model_labels = [label.to_string() for label in biorbd_model.markerNames()]
-# labels_index = [index_c3d for label in model_labels for index_c3d, c3d_label in enumerate(c3d_labels) if label in c3d_label]
-
-### --- Test --- ###
-labels_index = []
-missing_markers_index = []
-for index_model, model_label in enumerate(model_labels):
-    missing_markers_bool = True
-    for index_c3d, c3d_label in enumerate(c3d_labels):
-        if model_label in c3d_label:
-            labels_index.append(index_c3d)
-            missing_markers_bool = False
-    if missing_markers_bool:
-        labels_index.append(index_model)
-        missing_markers_index.append(index_model)
-### --- Test --- ###
-
-# markers_reordered = np.zeros((3, len(labels_index), markers.shape[2]))
-# for index, label_index in enumerate(labels_index):
-#     markers_reordered[:, index, :] = markers[:, label_index, :]
-markers_reordered = np.zeros((3, markers_mocap.shape[1], markers_mocap.shape[2]))
-for index, label_index in enumerate(labels_index):
-    if index in missing_markers_index:
-        markers_reordered[:, index, :] = np.nan
-    else:
-        markers_reordered[:, index, :] = markers_mocap[:, label_index, :]
+markers_reordered, _ = reorder_markers(biorbd_model, c3d, frames, step_size)
 
 
-markers = np.ndarray((3, markers_mocap.shape[1], q_ref.shape[1]))
+markers = np.ndarray((3, markers_reordered.shape[1], q_ref.shape[1]))
 symbolic_states = MX.sym("x", biorbd_model.nbQ(), 1)
 markers_func = Function("ForwardKin", [symbolic_states], [biorbd_model.markers(symbolic_states)], ["q"], ["markers"]).expand()
-for i in range(markers_mocap.shape[2]):
+for i in range(markers_reordered.shape[2]):
     markers[:, :, i] = markers_func(q_ref[:, i])
 
 fig = pyplot.figure()

@@ -72,16 +72,17 @@ def inverse_dynamics(biorbd_model, q_ref, qd_ref, qdd_ref):
 
 def prepare_ocp(biorbd_model, final_time, number_shooting_points, markers_ref, q_init, qdot_init, tau_init, xmin, xmax):
     # --- Options --- #
-    torque_min, torque_max = -1500, 1500
+    torque_min, torque_max = -300, 300
     n_q = biorbd_model.nbQ()
     n_qdot = biorbd_model.nbQdot()
     n_tau = biorbd_model.nbGeneralizedTorque()
 
     # Add objective functions
-    state_ref = np.concatenate((q_ref, qdot_ref))
+    state_ref = np.concatenate((q_init, qdot_init))
     objective_functions = ObjectiveList()
     objective_functions.add(Objective.Lagrange.TRACK_MARKERS, weight=1, target=markers_ref)
     objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=1e-7)
+    objective_functions.add(Objective.Lagrange.MINIMIZE_STATE, weight=1e-6, target=state_ref)
     # control_weight_segments = [1e-7, 1e-7, 1e-7,  # pelvis trans
     #                            1e-7, 1e-7, 1e-7,  # pelvis rot
     #                            1e-7, 1e-7, 1e-7,  # thorax
@@ -177,6 +178,8 @@ if __name__ == "__main__":
 
     # --- Adjust number of shooting points --- #
     adjusted_number_shooting_points, step_size = adjust_number_shooting_points(number_shooting_points, frames)
+    print('Adjusted number of shooting points: ', adjusted_number_shooting_points)
+    print('Node step size: ', step_size)
 
     frequency = c3d['header']['points']['frame_rate']
     duration = len(frames) / frequency
@@ -192,7 +195,7 @@ if __name__ == "__main__":
 
     rotating_gravity(biorbd_model, angle)
     # print_gravity = Function('print_gravity', [], [biorbd_model.getGravity().to_mx()], [], ['gravity'])
-    # print(print_gravity()['print_gravity'].full()
+    # print(print_gravity()['gravity'].full())
 
     xmin, xmax = x_bounds(biorbd_model)
 
@@ -217,13 +220,12 @@ if __name__ == "__main__":
     states, controls = Data.get_data(ocp, sol)
 
     # --- Save --- #
-    # save_name = "Do_822_contact_2" + "_optimal_estimation_N" + str(adjusted_number_shooting_points)# + "_variable_weights" # + "_U10-5"
     save_path = '/home/andre/BiorbdOptim/examples/optimal_estimation_ocp/Solutions/'
     save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points)
     ocp.save(sol, save_name + ".bo")
 
     get_gravity = Function('print_gravity', [], [biorbd_model.getGravity().to_mx()], [], ['gravity'])
-    gravity = get_gravity()['gravity'].full()
+    gravity = get_gravity()['gravity'].full().squeeze()
 
     save_variables_name = save_name + ".pkl"
     with open(save_variables_name, 'wb') as handle:

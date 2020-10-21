@@ -144,7 +144,7 @@ def correct_Kalman(biorbd_model, q):
 
 def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_ref, tau_init, xmin, xmax, min_g, max_g, markers_ref=None, markers_idx_ref=None, states_idx_ref=None, broken_dofs=None):
     # --- Options --- #
-    torque_min, torque_max = -150, 150
+    torque_min, torque_max = -300, 300
     n_q = biorbd_model.nbQ()
     n_qdot = biorbd_model.nbQdot()
     n_tau = biorbd_model.nbGeneralizedTorque()
@@ -171,6 +171,7 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
     # objective_functions.add(Objective.Lagrange.TRACK_STATE, weight=0.01, target=state_ref,
     #      states_idx=range(n_q, n_q + n_qdot))
     objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=1e-7)
+    # objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE_DERIVATIVE, weight=1e-3)
 
     # Dynamics
     dynamics = DynamicsTypeList()
@@ -239,13 +240,13 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
 
 if __name__ == "__main__":
     start = time.time()
-    subject = 'DoCi'
+    # subject = 'DoCi'
     # subject = 'JeCh'
     # subject = 'BeLa'
-    # subject = 'GuSe'
+    subject = 'GuSe'
     # subject = 'SaMi'
-    number_shooting_points = 100
-    trial = '822'
+    number_shooting_points = 1000
+    trial = '44_2'
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
     model_path = data_path + 'Model/'
@@ -275,7 +276,8 @@ if __name__ == "__main__":
     qdot_ref_biorbd = kalman_states['qd']
     qddot_ref_biorbd = kalman_states['qdd']
 
-    biorbd_model.setGravity(biorbd.Vector3d(0, 0, -9.80639))
+    initial_gravity = biorbd.Vector3d(0, 0, -9.80639)
+    biorbd_model.setGravity(initial_gravity)
 
     # --- Adjust number of shooting points --- #
     adjusted_number_shooting_points, step_size = adjust_number_shooting_points(number_shooting_points, frames)
@@ -307,7 +309,8 @@ if __name__ == "__main__":
         q_ref, qdot_ref, qddot_ref = choose_Kalman(q_ref_biorbd, qdot_ref_biorbd, qddot_ref_biorbd, q_ref_matlab, qdot_ref_matlab, qddot_ref_matlab)
     if subject == 'SaMi':
         if (trial == '821_seul_2' or trial == '821_seul_3'
-            or trial == '821_contact_1' or trial == '821_contact_2' or trial == '821_contact_3'):
+            or trial == '821_contact_1' or trial == '821_contact_2' or trial == '821_contact_3'
+            or trial == '821_822_4' or trial == '821_822_5'):
             q_ref, qdot_ref, qddot_ref = choose_Kalman(q_ref_biorbd, qdot_ref_biorbd, qddot_ref_biorbd, q_ref_matlab, qdot_ref_matlab, qddot_ref_matlab)
         else:
             q_ref, qdot_ref, qddot_ref = choose_Kalman(q_ref_matlab, qdot_ref_matlab, qddot_ref_matlab, q_ref_biorbd, qdot_ref_biorbd, qddot_ref_biorbd)
@@ -358,26 +361,33 @@ if __name__ == "__main__":
     options = {"max_iter": 3000, "tol": 1e-6, "constr_viol_tol": 1e-3, "linear_solver": "ma57"}
     sol = ocp.solve(solver=Solver.IPOPT, solver_options=options, show_online_optim=False)
 
+    # --- Get the results --- #
+    states, controls, params = Data.get_data(ocp, sol, get_parameters=True)
+
     # --- Save --- #
     save_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
-    # save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_onlyQ' + ".bo"
-    # save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + ".bo"
-    # save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_one_core' + ".bo"
-    # save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_EndChainMarkers' + ".bo"
-    # save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_not_kalman_EndChainMarkers' + ".bo"
-    # save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_not_kalman_not_rotated_EndChainMarkers' + ".bo"
-    # save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_rotated_model' + ".bo"
-    save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF' + ".bo"
-    ocp.save(sol, save_name)
+    # save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF' + ".bo"
+    save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF'
+    ocp.save(sol, save_name + ".bo")
+
+    biorbd_model = biorbd.Model(model_path + model_name)
+    biorbd_model.setGravity(initial_gravity)
+    rotating_gravity(biorbd_model, params["gravity_angle"].squeeze())
+    print_gravity = Function('print_gravity', [], [biorbd_model.getGravity().to_mx()], [], ['gravity'])
+    gravity = print_gravity()['gravity'].full().squeeze()
+
+    save_variables_name = save_name + ".pkl"
+    with open(save_variables_name, 'wb') as handle:
+        pickle.dump({'states': states, 'controls': controls, 'params': params, 'gravity': gravity},
+                    handle, protocol=3)
 
     # --- Load --- #
     # ocp, sol = OptimalControlProgram.load(save_name)
 
-    # --- Get the results --- #
-    states, controls, params = Data.get_data(ocp, sol, get_parameters=True)
-    angle = params["gravity_angle"]/np.pi*180
+    angle = params["gravity_angle"].squeeze()/np.pi*180
     print('Number of shooting points: ', adjusted_number_shooting_points)
     print('Gravity rotation: ', angle)
+    print('Gravity: ', gravity)
 
     if broken_dofs is not None:
         print('Abnormal Kalman states at DoFs: ', broken_dofs)
