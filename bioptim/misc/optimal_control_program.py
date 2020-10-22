@@ -130,7 +130,6 @@ class OptimalControlProgram:
             "state_transitions": state_transitions,
             "nb_threads": nb_threads,
             "use_SX": use_SX,
-            "continuity": continuity,
         }
 
         # Check integrity of arguments
@@ -309,9 +308,7 @@ class OptimalControlProgram:
         # otherwise they will erase the state_transitions)
         self.state_transitions = StateTransitionFunctions.prepare_state_transitions(self, state_transitions)
 
-        # Inner- and inter-phase continuity
-        if continuity:
-            ContinuityFunctions.continuity(self)
+        ContinuityFunctions.continuity(self)
 
         self.isdef_x_init = False
         self.isdef_u_init = False

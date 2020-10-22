@@ -12,7 +12,7 @@ from x_bounds import x_bounds
 from adjust_number_shooting_points import adjust_number_shooting_points
 from reorder_markers import reorder_markers
 
-from biorbd_optim import (
+from bioptim import (
     OptimalControlProgram,
     ObjectiveList,
     Objective,
@@ -20,8 +20,8 @@ from biorbd_optim import (
     DynamicsType,
     BoundsList,
     Bounds,
-    InitialConditionsList,
-    InitialConditions,
+    InitialGuessList,
+    InitialGuess,
     ShowResult,
     InterpolationType,
     Data,
@@ -192,7 +192,7 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
 
 
     # Initial guess
-    X_init = InitialConditionsList()
+    X_init = InitialGuessList()
     q_ref = np.zeros(q_ref.shape)
     qdot_ref = np.zeros(qdot_ref.shape)
     X_init.add(np.concatenate([q_ref, qdot_ref]), interpolation=InterpolationType.EACH_FRAME)
@@ -203,7 +203,7 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
     U_bounds[0].min[:6, :] = 0
     U_bounds[0].max[:6, :] = 0
 
-    U_init = InitialConditionsList()
+    U_init = InitialGuessList()
     tau_init = np.zeros(tau_init.shape)
     U_init.add(tau_init, interpolation=InterpolationType.EACH_FRAME)
 
@@ -212,7 +212,7 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
     parameters = ParameterList()
     bound_gravity = Bounds(min_bound=min_g, max_bound=max_g, interpolation=InterpolationType.CONSTANT)
     # and an initial condition
-    initial_gravity_orientation = InitialConditions([0, 0])
+    initial_gravity_orientation = InitialGuess([0, 0])
     parameters.add(
         parameter_name="gravity_angle",  # The name of the parameter
         function=rotating_gravity,  # The function that modifies the biorbd model
@@ -240,13 +240,13 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
 
 if __name__ == "__main__":
     start = time.time()
-    # subject = 'DoCi'
+    subject = 'DoCi'
     # subject = 'JeCh'
     # subject = 'BeLa'
-    subject = 'GuSe'
+    # subject = 'GuSe'
     # subject = 'SaMi'
-    number_shooting_points = 1000
-    trial = '44_2'
+    number_shooting_points = 100
+    trial = '822'
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
     model_path = data_path + 'Model/'
