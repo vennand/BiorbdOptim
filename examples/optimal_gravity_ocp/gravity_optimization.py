@@ -146,17 +146,11 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
     # --- Options --- #
     torque_min, torque_max = -300, 300
     n_q = biorbd_model.nbQ()
-    n_qdot = biorbd_model.nbQdot()
     n_tau = biorbd_model.nbGeneralizedTorque()
 
     # Add objective functions
     state_ref = np.concatenate((q_ref, qdot_ref))
     objective_functions = ObjectiveList()
-    # if markers_ref is not None:
-    #     objective_functions.add(Objective.Lagrange.TRACK_MARKERS, weight=10, target=markers_ref, markers_idx=range(36, 39))
-    #     objective_functions.add(Objective.Lagrange.TRACK_MARKERS, weight=10, target=markers_ref, markers_idx=range(58, 61))
-    #     objective_functions.add(Objective.Lagrange.TRACK_MARKERS, weight=10, target=markers_ref, markers_idx=range(75, 78))
-    #     objective_functions.add(Objective.Lagrange.TRACK_MARKERS, weight=10, target=markers_ref, markers_idx=range(92, 95))
     if markers_idx_ref and markers_ref is not None:
         for markers_idx_range in markers_idx_ref:
             objective_functions.add(Objective.Lagrange.TRACK_MARKERS, weight=1, target=markers_ref,
@@ -168,27 +162,15 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
     else:
         objective_functions.add(Objective.Lagrange.TRACK_STATE, weight=1, target=state_ref,
              states_idx=range(n_q))
-    # objective_functions.add(Objective.Lagrange.TRACK_STATE, weight=0.01, target=state_ref,
-    #      states_idx=range(n_q, n_q + n_qdot))
     objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=1e-7)
-    # objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE_DERIVATIVE, weight=1e-3)
 
     # Dynamics
     dynamics = DynamicsTypeList()
     dynamics.add(DynamicsType.TORQUE_DRIVEN)
 
-    # Constraints
-    # constraints = ConstraintList()
-
     # Path constraint
     X_bounds = BoundsList()
     X_bounds.add(Bounds(min_bound=xmin, max_bound=xmax))
-    # if markers_idx_ref is None and broken_dofs is not None:
-    #     for dof in broken_dofs:
-    #         X_bounds[0].min[dof, :] = 0
-    #         X_bounds[0].max[dof, :] = 0
-    # X_bounds[0].min[40:42, :] = 0
-    # X_bounds[0].max[40:42, :] = 0
 
 
     # Initial guess
@@ -231,10 +213,10 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
         X_bounds,
         U_bounds,
         objective_functions,
-        # constraints,
         nb_integration_steps=4,
         parameters=parameters,
         nb_threads=4,
+        use_SX=True,
     )
 
 
@@ -268,7 +250,7 @@ if __name__ == "__main__":
     qdot_ref_matlab = loadmat(kalman_path + qd_name)['V2']
     qddot_ref_matlab = loadmat(kalman_path + qdd_name)['A2']
 
-    load_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
+    load_path = 'Solutions/'
     load_variables_name = load_path + subject + '/Kalman/' + os.path.splitext(c3d_name)[0] + ".pkl"
     with open(load_variables_name, 'rb') as handle:
         kalman_states = pickle.load(handle)
@@ -287,15 +269,14 @@ if __name__ == "__main__":
     frequency = c3d['header']['points']['frame_rate']
     duration = len(frames) / frequency
 
-
     # --- Calculate Kalman controls --- #
     q_ref_matlab = q_ref_matlab[:, frames.start:frames.stop:step_size]
     qdot_ref_matlab = qdot_ref_matlab[:, frames.start:frames.stop:step_size]
     qddot_ref_matlab = qddot_ref_matlab[:, frames.start:frames.stop:step_size]
 
-    q_ref_biorbd = q_ref_biorbd[:, ::step_size]
-    qdot_ref_biorbd = qdot_ref_biorbd[:, ::step_size]
-    qddot_ref_biorbd = qddot_ref_biorbd[:, ::step_size]
+    q_ref_biorbd = q_ref_biorbd[:, :frames.stop-frames.start:step_size]
+    qdot_ref_biorbd = qdot_ref_biorbd[:, :frames.stop-frames.start:step_size]
+    qddot_ref_biorbd = qddot_ref_biorbd[:, :frames.stop-frames.start:step_size]
 
     q_ref_matlab = correct_Kalman(biorbd_model, q_ref_matlab)
     q_ref_biorbd = correct_Kalman(biorbd_model, q_ref_biorbd)
@@ -315,13 +296,6 @@ if __name__ == "__main__":
         else:
             q_ref, qdot_ref, qddot_ref = choose_Kalman(q_ref_matlab, qdot_ref_matlab, qddot_ref_matlab, q_ref_biorbd, qdot_ref_biorbd, qddot_ref_biorbd)
 
-    # if (trial == '821_822_3'
-    #     # or trial == '821_822_4'
-    #     ):
-    #     q_ref[:6, :] = q_ref_biorbd[:6, :]
-    #     qdot_ref[:6, :] = qdot_ref_biorbd[:6, :]
-    #     qddot_ref[:6, :] = qddot_ref_biorbd[:6, :]
-
     states_idx_range_list, broken_dofs = check_Kalman(q_ref)
     if broken_dofs is not None:
         print('Abnormal Kalman states at DoFs: ', broken_dofs)
@@ -332,21 +306,9 @@ if __name__ == "__main__":
 
     tau_ref = inverse_dynamics(biorbd_model, q_ref, qdot_ref, qddot_ref)
 
-    # load_name = '/home/andre/BiorbdOptim/examples/optimal_estimation_no_constraint_ocp/Solutions/DoCi/Do_822_contact_2.bo'
-    # load_name = '/home/andre/BiorbdOptim/examples/optimal_estimation_no_constraint_ocp/Solutions/DoCi/Do_822_contact_2_not_rotated.bo'
-    # ocp_not_kalman, sol_not_kalman = OptimalControlProgram.load(load_name)
-    # states_not_kalman, controls_not_kalman = Data.get_data(ocp_not_kalman, sol_not_kalman)
-    # q_ref = states_not_kalman['q'][:, frames.start:frames.stop:step_size]
-    # qdot_ref = states_not_kalman['q_dot'][:, frames.start:frames.stop:step_size]
-    # tau_ref = controls_not_kalman['tau'][:, frames.start:frames.stop:step_size][:, :-1]
-
     xmin, xmax = x_bounds(biorbd_model)
 
     markers_reordered, markers_idx_ref = reorder_markers(biorbd_model, c3d, frames, step_size, broken_dofs)
-
-    # markers_rotated = np.zeros(markers_reordered.shape)
-    # for frame in range(markers.shape[2]):
-    #     markers_rotated[..., frame] = refential_matrix(subject).T.dot(markers_reordered[..., frame])
     markers_rotated = markers_reordered
 
     ocp = prepare_ocp(
@@ -358,16 +320,25 @@ if __name__ == "__main__":
     )
 
     # --- Solve the program --- #
-    options = {"max_iter": 3000, "tol": 1e-6, "constr_viol_tol": 1e-3, "linear_solver": "ma57"}
-    sol = ocp.solve(solver=Solver.IPOPT, solver_options=options, show_online_optim=False)
+    # options = {"max_iter": 3000, "tol": 1e-6, "constr_viol_tol": 1e-3, "linear_solver": "ma57"}
+    # sol = ocp.solve(solver=Solver.IPOPT, solver_options=options, show_online_optim=False)
+    options = {
+        "integrator_type": "IRK",
+        "nlp_solver_tol_comp": 1e-04,
+        "nlp_solver_tol_eq": 1e-04,
+        "nlp_solver_tol_ineq": 1e-06,
+        "nlp_solver_tol_stat": 1e-06,
+        "sim_method_newton_iter": 5,
+        "sim_method_num_stages": 4,
+        "sim_method_num_steps": 4}
+    sol = ocp.solve(solver=Solver.ACADOS, solver_options=options, show_online_optim=False)
 
     # --- Get the results --- #
     states, controls, params = Data.get_data(ocp, sol, get_parameters=True)
 
     # --- Save --- #
     save_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
-    # save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF' + ".bo"
-    save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF'
+    save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF_ACADOS'
     ocp.save(sol, save_name + ".bo")
 
     biorbd_model = biorbd.Model(model_path + model_name)
@@ -381,9 +352,6 @@ if __name__ == "__main__":
         pickle.dump({'states': states, 'controls': controls, 'params': params, 'gravity': gravity},
                     handle, protocol=3)
 
-    # --- Load --- #
-    # ocp, sol = OptimalControlProgram.load(save_name)
-
     angle = params["gravity_angle"].squeeze()/np.pi*180
     print('Number of shooting points: ', adjusted_number_shooting_points)
     print('Gravity rotation: ', angle)
@@ -394,6 +362,3 @@ if __name__ == "__main__":
 
     stop = time.time()
     print('Runtime: ', stop - start)
-
-    # --- Show results --- #
-    # ShowResult(ocp, sol).animate(nb_frames=adjusted_number_shooting_points)
