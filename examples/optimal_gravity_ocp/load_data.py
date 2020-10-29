@@ -38,7 +38,7 @@ if __name__ == "__main__":
     # subject = 'GuSe'
     subject = 'SaMi'
     number_shooting_points = 100
-    trial = '821_822_5'
+    trial = '822_contact_1'
 
     data_filename = load_data_filename(subject, trial)
     model_name = data_filename['model']

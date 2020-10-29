@@ -243,10 +243,10 @@ if __name__ == "__main__":
     # subject = 'DoCi'
     # subject = 'JeCh'
     # subject = 'BeLa'
-    subject = 'GuSe'
-    # subject = 'SaMi'
+    # subject = 'GuSe'
+    subject = 'SaMi'
     number_shooting_points = 1000
-    trial = '44_2'
+    trial = '821_contact_2'
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
     model_path = data_path + 'Model/'

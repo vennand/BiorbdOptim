@@ -81,10 +81,10 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, markers_ref, q
     state_ref = np.concatenate((q_init, qdot_init))
     objective_functions = ObjectiveList()
     objective_functions.add(Objective.Lagrange.TRACK_MARKERS, weight=1, target=markers_ref)
-    objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=1e-7)
+    objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=1e-5)
     objective_functions.add(Objective.Lagrange.MINIMIZE_STATE, weight=1e-6, target=state_ref)
-    # control_weight_segments = [1e-7, 1e-7, 1e-7,  # pelvis trans
-    #                            1e-7, 1e-7, 1e-7,  # pelvis rot
+    # control_weight_segments = [0   , 0   , 0   ,  # pelvis trans
+    #                            0   , 0   , 0   ,  # pelvis rot
     #                            1e-7, 1e-7, 1e-7,  # thorax
     #                            1e-5, 1e-5, 1e-5,  # head
     #                            1e-5, 1e-5,        # right shoulder
@@ -150,13 +150,13 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, markers_ref, q
 
 if __name__ == "__main__":
     start = time.time()
-    subject = 'DoCi'
+    # subject = 'DoCi'
     # subject = 'JeCh'
     # subject = 'BeLa'
     # subject = 'GuSe'
-    # subject = 'SaMi'
+    subject = 'SaMi'
     number_shooting_points = 100
-    trial = '822'
+    trial = '821_seul_1'
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
     model_path = data_path + 'Model/'
