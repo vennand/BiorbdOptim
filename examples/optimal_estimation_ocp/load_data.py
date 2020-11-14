@@ -11,11 +11,12 @@ from load_data_filename import load_data_filename
 from adjust_number_shooting_points import adjust_number_shooting_points
 from reorder_markers import reorder_markers
 
-from biorbd_optim import (
+from bioptim import (
     OptimalControlProgram,
+    Simulate,
     Problem,
     Bounds,
-    InitialConditions,
+    InitialGuess,
     ShowResult,
     Objective,
     InterpolationType,
@@ -34,10 +35,10 @@ def rotating_gravity(biorbd_model, value):
     biorbd_model.setGravity(gravity)
 
 
-def states_to_markers(biorbd_model, ocp, states):
+def states_to_markers(biorbd_model, states):
     q = states['q']
-    n_q = ocp.nlp[0]["model"].nbQ()
-    n_mark = ocp.nlp[0]["model"].nbMarkers()
+    n_q = biorbd_model.nbQ()
+    n_mark = biorbd_model.nbMarkers()
     n_frames = q.shape[1]
 
     markers = np.ndarray((3, n_mark, q.shape[1]))
@@ -74,13 +75,13 @@ def dynamics(biorbd_model, q_ref, qd_ref, qdd_ref=None, tau_ref=None):
 
 
 if __name__ == "__main__":
-    subject = 'DoCi'
+    # subject = 'DoCi'
     # subject = 'JeCh'
     # subject = 'BeLa'
     # subject = 'GuSe'
-    # subject = 'SaMi'
+    subject = 'SaMi'
     number_shooting_points = 100
-    trial = '822'
+    trial = '821_seul_4'
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
     model_path = data_path + 'Model/'
@@ -115,7 +116,7 @@ if __name__ == "__main__":
 
 
     # --- Load --- #
-    load_path = '/home/andre/BiorbdOptim/examples/optimal_estimation_ocp/Solutions/'
+    load_path = 'Solutions/'
     load_name = load_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points)
     ocp, sol = OptimalControlProgram.load(load_name + ".bo")
 
@@ -128,8 +129,7 @@ if __name__ == "__main__":
     step_size = data['step_size']
 
     load_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
-    optimal_gravity_filename = load_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF' + ".bo"
-    # optimal_gravity_EndChainMarkers_filename = "../optimal_gravity_ocp/Solutions/DoCi/Do_822_contact_2_optimal_gravity_N" + str(number_shooting_points) + "_EndChainMarkers.bo"
+    optimal_gravity_filename = load_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF'
 
     q_kalman = loadmat(kalman_path + q_name)['Q2'][:, frames.start:frames.stop:step_size]
     qdot_kalman = loadmat(kalman_path + qd_name)['V2'][:, frames.start:frames.stop:step_size]
@@ -152,22 +152,32 @@ if __name__ == "__main__":
     states, controls = Data.get_data(ocp, sol)
     qddot = fd(states['q'], states['q_dot'], controls['tau'])
 
-    ocp_optimal_gravity, sol_optimal_gravity = OptimalControlProgram.load(optimal_gravity_filename)
-    states_optimal_gravity, controls_optimal_gravity, params_optimal_gravity = Data.get_data(ocp_optimal_gravity, sol_optimal_gravity, get_parameters=True)
+    # ocp_optimal_gravity, sol_optimal_gravity = OptimalControlProgram.load(optimal_gravity_filename + '.bo')
+    # states_optimal_gravity, controls_optimal_gravity, params_optimal_gravity = Data.get_data(ocp_optimal_gravity, sol_optimal_gravity, get_parameters=True)
+
+    with open(optimal_gravity_filename + '.pkl', 'rb') as handle:
+        data = pickle.load(handle)
+    # states_optimal_gravity, controls_optimal_gravity, params_optimal_gravity = Data.get_data(data, get_parameters=True)
+    states_optimal_gravity = data['states']
+    controls_optimal_gravity = data['controls']
+    params_optimal_gravity = data['params']
+
+
     angle = params_optimal_gravity["gravity_angle"].squeeze()
     qddot_optimal_gravity = fd(states_optimal_gravity['q'], states_optimal_gravity['q_dot'], controls_optimal_gravity['tau'])
 
-    # ocp_optimal_gravity_EndChainMarkers, sol_optimal_gravity_EndChainMarkers = OptimalControlProgram.load(optimal_gravity_EndChainMarkers_filename)
-    # states_optimal_gravity_EndChainMarkers, controls_optimal_gravity_EndChainMarkers, params_optimal_gravity_EndChainMarkers = Data.get_data(ocp_optimal_gravity_EndChainMarkers, sol_optimal_gravity_EndChainMarkers, get_parameters=True)
-    # angle_EndChainMarkers = params_optimal_gravity_EndChainMarkers["gravity_angle"].squeeze()
-    # qddot_optimal_gravity_EndChainMarkers = fd(states_optimal_gravity_EndChainMarkers['q'], states_optimal_gravity_EndChainMarkers['q_dot'], controls_optimal_gravity_EndChainMarkers['tau'])
-
     rotating_gravity(biorbd_model, angle.squeeze())
-    markers = states_to_markers(biorbd_model, ocp, states)
-    markers_optimal_gravity = states_to_markers(biorbd_model, ocp, states_optimal_gravity)
-    # markers_optimal_gravity_EndChainMarkers = states_to_markers(biorbd_model, ocp, states_optimal_gravity_EndChainMarkers)
-    markers_kalman = states_to_markers(biorbd_model, ocp, states_kalman)
-    markers_kalman_biorbd = states_to_markers(biorbd_model, ocp, states_kalman_biorbd)
+    markers = states_to_markers(biorbd_model, states)
+    markers_optimal_gravity = states_to_markers(biorbd_model, states_optimal_gravity)
+    # markers_optimal_gravity_EndChainMarkers = states_to_markers(biorbd_model, states_optimal_gravity_EndChainMarkers)
+    markers_kalman = states_to_markers(biorbd_model, states_kalman)
+    markers_kalman_biorbd = states_to_markers(biorbd_model, states_kalman_biorbd)
+
+    # --- Simulate --- #
+
+    sol_simulate_OGE = Simulate.from_data(ocp, [states_optimal_gravity, controls_optimal_gravity], single_shoot=False)
+    sol_simulate_OE = Simulate.from_data(ocp, [states, controls], single_shoot=False)
+    ShowResult(ocp, sol_simulate_OE).graphs()
 
     # --- Stats --- #
     #OE
@@ -186,14 +196,6 @@ if __name__ == "__main__":
             np.nanstd([np.sqrt(np.sum((markers_optimal_gravity[:, i, j] - markers_mocap[:, i, j]) ** 2))
                 for i in range(markers_mocap.shape[1]) for j in range(markers_mocap.shape[2])])*1000)
 
-    # OG + ECM
-    # average_distance_between_markers_optimal_gravity_EndChainMarkers = (
-    #         np.nanmean([np.sqrt(np.sum((markers_optimal_gravity_EndChainMarkers[:, i, j] - markers_mocap[:, i, j]) ** 2))
-    #                     for i in range(markers_mocap.shape[1]) for j in range(markers_mocap.shape[2])]) * 1000)
-    # sd_distance_between_markers_optimal_gravity_EndChainMarkers = (
-    #         np.nanstd([np.sqrt(np.sum((markers_optimal_gravity_EndChainMarkers[:, i, j] - markers_mocap[:, i, j]) ** 2))
-    #             for i in range(markers_mocap.shape[1]) for j in range(markers_mocap.shape[2])])*1000)
-
     # EKF
     average_distance_between_markers_kalman = (
             np.nanmean([np.sqrt(np.sum((markers_kalman[:, i, j] - markers_mocap[:, i, j]) ** 2))
@@ -210,12 +212,11 @@ if __name__ == "__main__":
             np.nanstd([np.sqrt(np.sum((markers_kalman_biorbd[:, i, j] - markers_mocap[:, i, j]) ** 2))
                 for i in range(markers_mocap.shape[1]) for j in range(markers_mocap.shape[2])])*1000)
 
-    print('Number of shooting points: ', number_shooting_points)
+    print('Number of shooting points: ', adjusted_number_shooting_points)
     print('Average marker error')
     print('Kalman: ', average_distance_between_markers_kalman, u"\u00B1", sd_distance_between_markers_kalman)
     print('Kalman biorbd: ', average_distance_between_markers_kalman_biorbd, u"\u00B1", sd_distance_between_markers_kalman_biorbd)
     print('Optimal gravity: ', average_distance_between_markers_optimal_gravity, u"\u00B1", sd_distance_between_markers_optimal_gravity)
-    # print('Optimal gravity with end chain markers: ', average_distance_between_markers_optimal_gravity_EndChainMarkers, u"\u00B1", sd_distance_between_markers_optimal_gravity_EndChainMarkers)
     print('Estimation: ', average_distance_between_markers, u"\u00B1", sd_distance_between_markers)
 
     average_difference_between_Q_OG = np.sqrt(np.nanmean((states_kalman['q'] - states_optimal_gravity['q']) ** 2, 1))
@@ -238,18 +239,15 @@ if __name__ == "__main__":
 
     momentum = am(states['q'], states['q_dot'], qddot)
     momentum_optimal_gravity = am(states_optimal_gravity['q'], states_optimal_gravity['q_dot'], qddot_optimal_gravity)
-    # momentum_optimal_gravity_EndChainMarkers = am(states_optimal_gravity_EndChainMarkers['q'], states_optimal_gravity_EndChainMarkers['q_dot'], qddot_optimal_gravity_EndChainMarkers)
     momentum_kalman = am(q_kalman, qdot_kalman, qddot_kalman)
 
     total_mass = mcm()['o0'].full()
     linear_momentum = total_mass * vcm(states['q'], states['q_dot'])
     linear_momentum_optimal_gravity = total_mass * vcm(states_optimal_gravity['q'], states_optimal_gravity['q_dot'])
-    # linear_momentum_optimal_gravity_EndChainMarkers = total_mass * vcm(states_optimal_gravity_EndChainMarkers['q'], states_optimal_gravity_EndChainMarkers['q_dot'])
     linear_momentum_kalman = total_mass * vcm(q_kalman, qdot_kalman)
 
     slope_lm, _ = np.polyfit(range(linear_momentum.shape[1]), linear_momentum.T, 1)/total_mass/(len(frames)/200/number_shooting_points)
     slope_lm_optimal_gravity, _ = np.polyfit(range(linear_momentum_optimal_gravity.shape[1]), linear_momentum_optimal_gravity.T, 1)/total_mass/(len(frames)/200/number_shooting_points)
-    # slope_lm_optimal_gravity_EndChainMarkers, _ = np.polyfit(range(linear_momentum_optimal_gravity_EndChainMarkers.shape[1]), linear_momentum_optimal_gravity_EndChainMarkers.T, 1) / total_mass / (len(frames) / 200 / number_shooting_points)
     slope_lm_kalman, _ = np.polyfit(range(linear_momentum_kalman.shape[1]), linear_momentum_kalman.T, 1)/total_mass/(len(frames)/200/number_shooting_points)
 
 
@@ -259,29 +257,10 @@ if __name__ == "__main__":
     from matplotlib.offsetbox import AnchoredText
     from mpl_toolkits.mplot3d import Axes3D
 
-    # fig = pyplot.figure()
-    # ax = Axes3D(fig)
-    #
-    # ax.scatter(markers[0, :, 0], markers[1, :, 0], markers[2, :, 0])
-    # ax.scatter(markers_mocap[0, :, 0], markers_mocap[1, :, 0], markers_mocap[2, :, 0])
-
-    # for dof in range(controls['tau'].shape[0]):
-    # for dof in range(6,9):
-    #     fig = pyplot.figure()
-    #     pyplot.plot(controls['tau'][dof, :].T, color='blue')
-    #     pyplot.plot(controls_optimal_gravity['tau'][dof, :].T, color='orange')
-    #     pyplot.plot(controls_optimal_gravity_EndChainMarkers['tau'][dof, :].T, color='red')
-    #     pyplot.plot(controls_kalman['tau'][dof, :].T, color='green')
-    #     pyplot.title('DoF ' + str(dof+1))
-    #     pyplot.legend(['Estimation', 'Optimal gravity', 'Optimal gravity with end chain markers', 'Kalman'])
-    #     pyplot.savefig('Thorax_control_N' + str(number_shooting_points) + '_DoF' + str(dof+1) + '.png')
-
     fig = pyplot.figure()
     lm_oe = pyplot.plot(momentum.T, color='blue')
     lm_og = pyplot.plot(momentum_optimal_gravity.T, color='orange', linestyle=':')
-    # pyplot.plot(momentum_optimal_gravity_EndChainMarkers.T, color='red', linestyle=':')
     lm_kal = pyplot.plot(momentum_kalman.T, color='green')
-    # pyplot.legend(['Estimation', 'Optimal gravity', 'Optimal gravity with end chain markers', 'Kalman'])
 
     lm_oe = Line2D([0, 1], [0, 1], linestyle='-', color='blue')
     lm_og = Line2D([0, 1], [0, 1], linestyle=':', color='orange')
@@ -293,21 +272,12 @@ if __name__ == "__main__":
     pyplot.annotate('y', (momentum.shape[1]-1, momentum.full().T[-1,1]), textcoords="offset points", xytext=(0,10), ha='center')
     pyplot.annotate('z', (momentum.shape[1]-1, momentum.full().T[-1,2]), textcoords="offset points", xytext=(0,10), ha='center')
 
-    # ax = pyplot.gca()
-    # leg = ax.get_legend()
-    # leg.legendHandles[0].set_color('blue')
-    # leg.legendHandles[1].set_color('orange')
-    # # leg.legendHandles[2].set_color('red')
-    # leg.legendHandles[2].set_color('green')
-
     # pyplot.savefig('Angular_momentum_N' + str(number_shooting_points) + '.png')
 
     fig = pyplot.figure()
     pyplot.plot(linear_momentum.T, color='blue')
     pyplot.plot(linear_momentum_optimal_gravity.T, color='orange', linestyle=':')
-    # pyplot.plot(linear_momentum_optimal_gravity_EndChainMarkers.T, color='red', linestyle=':')
     pyplot.plot(linear_momentum_kalman.T, color='green')
-    # pyplot.legend(['Estimation', 'Optimal gravity', 'Optimal gravity with end chain markers', 'Kalman'])
 
     lm_oe = Line2D([0, 1], [0, 1], linestyle='-', color='blue')
     lm_og = Line2D([0, 1], [0, 1], linestyle=':', color='orange')
@@ -327,13 +297,6 @@ if __name__ == "__main__":
     text_box = AnchoredText(box_text, frameon=True, loc=3, pad=0.5)
     pyplot.setp(text_box.patch, facecolor='white', alpha=0.5)
     pyplot.gca().add_artist(text_box)
-
-    # ax = pyplot.gca()
-    # leg = ax.get_legend()
-    # leg.legendHandles[0].set_color('blue')
-    # leg.legendHandles[1].set_color('orange')
-    # # leg.legendHandles[2].set_color('red')
-    # leg.legendHandles[2].set_color('green')
 
     # pyplot.savefig('Linear_momentum_N' + str(number_shooting_points) + '.png')
 

@@ -227,8 +227,9 @@ if __name__ == "__main__":
     # subject = 'BeLa'
     # subject = 'GuSe'
     # subject = 'SaMi'
-    number_shooting_points = 100
+    number_shooting_points = 1000
     trial = '822'
+    print('Subject: ', subject, ', Trial: ', trial)
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
     model_path = data_path + 'Model/'
@@ -324,7 +325,9 @@ if __name__ == "__main__":
     # sol = ocp.solve(solver=Solver.IPOPT, solver_options=options, show_online_optim=False)
     options = {
         "integrator_type": "IRK",
-        "nlp_solver_tol_comp": 1e-04,
+        "nlp_solver_max_iter": 1000,
+        "nlp_solver_step_length": 0.3,
+        "nlp_solver_tol_comp": 1e-05,
         "nlp_solver_tol_eq": 1e-04,
         "nlp_solver_tol_ineq": 1e-06,
         "nlp_solver_tol_stat": 1e-06,
@@ -337,7 +340,7 @@ if __name__ == "__main__":
     states, controls, params = Data.get_data(ocp, sol, get_parameters=True)
 
     # --- Save --- #
-    save_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
+    save_path = 'Solutions/'
     save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF_ACADOS'
     ocp.save(sol, save_name + ".bo")
 
