@@ -128,9 +128,6 @@ if __name__ == "__main__":
     frames = data['frames']
     step_size = data['step_size']
 
-    load_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
-    optimal_gravity_filename = load_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF'
-
     q_kalman = loadmat(kalman_path + q_name)['Q2'][:, frames.start:frames.stop:step_size]
     qdot_kalman = loadmat(kalman_path + qd_name)['V2'][:, frames.start:frames.stop:step_size]
     qddot_kalman = loadmat(kalman_path + qdd_name)['A2'][:, frames.start:frames.stop:step_size]
@@ -152,6 +149,8 @@ if __name__ == "__main__":
     states, controls = Data.get_data(ocp, sol)
     qddot = fd(states['q'], states['q_dot'], controls['tau'])
 
+    load_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
+    optimal_gravity_filename = load_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF'
     # ocp_optimal_gravity, sol_optimal_gravity = OptimalControlProgram.load(optimal_gravity_filename + '.bo')
     # states_optimal_gravity, controls_optimal_gravity, params_optimal_gravity = Data.get_data(ocp_optimal_gravity, sol_optimal_gravity, get_parameters=True)
 

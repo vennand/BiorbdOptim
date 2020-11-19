@@ -105,7 +105,7 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, markers_ref, q
                                1e-4, 1e-3,        # left foot
                                ]
     for idx in range(n_tau):
-      objective_functions.add(Objective.Lagrange.TRACK_TORQUE, weight=control_weight_segments[idx], target=tau_init, controls_idx=idx)
+      objective_functions.add(Objective.Lagrange.TRACK_TORQUE, weight=control_weight_segments[idx], target=tau_init[idx:idx+1, :], controls_idx=idx)
       objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=control_weight_segments[idx], controls_idx=idx)
 
     # Dynamics
@@ -261,7 +261,7 @@ if __name__ == "__main__":
         options = {
             "integrator_type": "IRK",
             "nlp_solver_max_iter": 1000,
-            "nlp_solver_step_length": 0.005,
+            "nlp_solver_step_length": 0.3,
             "nlp_solver_tol_comp": 1e-05,
             "nlp_solver_tol_eq": 1e-04,
             "nlp_solver_tol_ineq": 1e-06,
