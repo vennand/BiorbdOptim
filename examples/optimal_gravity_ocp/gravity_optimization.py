@@ -142,7 +142,7 @@ def correct_Kalman(biorbd_model, q):
     return q
 
 
-def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_ref, tau_init, xmin, xmax, min_g, max_g, markers_ref=None, markers_idx_ref=None, states_idx_ref=None, broken_dofs=None):
+def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_ref, tau_init, xmin, xmax, min_g, max_g, use_ACADOS, markers_ref=None, markers_idx_ref=None, states_idx_ref=None, broken_dofs=None):
     # --- Options --- #
     torque_min, torque_max = -300, 300
     n_q = biorbd_model.nbQ()
@@ -153,15 +153,15 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
     objective_functions = ObjectiveList()
     if markers_idx_ref and markers_ref is not None:
         for markers_idx_range in markers_idx_ref:
-            objective_functions.add(Objective.Lagrange.TRACK_MARKERS, weight=1, target=markers_ref,
-                                    markers_idx=markers_idx_range)
+            objective_functions.add(Objective.Lagrange.TRACK_MARKERS, weight=1, target=markers_ref[markers_idx_range, :],
+                                    index=markers_idx_range)
     if states_idx_ref is not None:
         for states_idx_range in states_idx_ref:
-            objective_functions.add(Objective.Lagrange.TRACK_STATE, weight=1, target=state_ref,
-                                    states_idx=states_idx_range)
+            objective_functions.add(Objective.Lagrange.TRACK_STATE, weight=1, target=state_ref[states_idx_range, :],
+                                    index=states_idx_range)
     else:
-        objective_functions.add(Objective.Lagrange.TRACK_STATE, weight=1, target=state_ref,
-             states_idx=range(n_q))
+        objective_functions.add(Objective.Lagrange.TRACK_STATE, weight=1, target=state_ref[range(n_q), :],
+             index=range(n_q))
     objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=1e-7)
 
     # Dynamics
@@ -216,20 +216,22 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
         nb_integration_steps=4,
         parameters=parameters,
         nb_threads=4,
-        use_SX=True,
+        use_SX=use_ACADOS,
     )
 
 
 if __name__ == "__main__":
     start = time.time()
-    subject = 'DoCi'
+    # subject = 'DoCi'
     # subject = 'JeCh'
     # subject = 'BeLa'
     # subject = 'GuSe'
-    # subject = 'SaMi'
+    subject = 'SaMi'
     number_shooting_points = 1000
-    trial = '822'
+    trial = '821_seul_4'
     print('Subject: ', subject, ', Trial: ', trial)
+
+    use_ACADOS = False
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
     model_path = data_path + 'Model/'
@@ -318,30 +320,36 @@ if __name__ == "__main__":
         states_idx_ref=states_idx_range_list, broken_dofs=broken_dofs,
         xmin=xmin, xmax=xmax,
         min_g=[0, -np.pi/16], max_g=[2*np.pi, np.pi/16],
+        use_ACADOS=use_ACADOS,
     )
 
     # --- Solve the program --- #
-    # options = {"max_iter": 3000, "tol": 1e-6, "constr_viol_tol": 1e-3, "linear_solver": "ma57"}
-    # sol = ocp.solve(solver=Solver.IPOPT, solver_options=options, show_online_optim=False)
-    options = {
-        "integrator_type": "IRK",
-        "nlp_solver_max_iter": 1000,
-        "nlp_solver_step_length": 0.3,
-        "nlp_solver_tol_comp": 1e-05,
-        "nlp_solver_tol_eq": 1e-04,
-        "nlp_solver_tol_ineq": 1e-06,
-        "nlp_solver_tol_stat": 1e-06,
-        "sim_method_newton_iter": 5,
-        "sim_method_num_stages": 4,
-        "sim_method_num_steps": 4}
-    sol = ocp.solve(solver=Solver.ACADOS, solver_options=options, show_online_optim=False)
+    if use_ACADOS:
+        options = {
+            "integrator_type": "IRK",
+            "nlp_solver_max_iter": 1000,
+            "nlp_solver_step_length": 0.3,
+            "nlp_solver_tol_comp": 1e-05,
+            "nlp_solver_tol_eq": 1e-04,
+            "nlp_solver_tol_ineq": 1e-06,
+            "nlp_solver_tol_stat": 1e-06,
+            "sim_method_newton_iter": 5,
+            "sim_method_num_stages": 4,
+            "sim_method_num_steps": 4}
+        sol = ocp.solve(solver=Solver.ACADOS, solver_options=options, show_online_optim=False)
+    else:
+        options = {"max_iter": 3000, "tol": 1e-6, "constr_viol_tol": 1e-3, "linear_solver": "ma57"}
+        sol = ocp.solve(solver=Solver.IPOPT, solver_options=options, show_online_optim=False)
 
     # --- Get the results --- #
     states, controls, params = Data.get_data(ocp, sol, get_parameters=True)
 
     # --- Save --- #
     save_path = 'Solutions/'
-    save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF_ACADOS'
+    if use_ACADOS:
+        save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF_ACADOS'
+    else:
+        save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF'
     ocp.save(sol, save_name + ".bo")
 
     biorbd_model = biorbd.Model(model_path + model_name)

@@ -83,7 +83,7 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, markers_ref, q
     objective_functions.add(Objective.Lagrange.TRACK_MARKERS, weight=1, target=markers_ref)
     # objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=1e-7, target=tau_init)
     # objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=1e-7)
-    objective_functions.add(Objective.Lagrange.MINIMIZE_STATE, weight=1e-5, target=state_ref)
+    objective_functions.add(Objective.Lagrange.TRACK_STATE, weight=1e-5, target=state_ref)
     objective_functions.add(Objective.Lagrange.MINIMIZE_STATE, weight=1e-5, index=range(6, n_q))
     control_weight_segments = [0   , 0   , 0   ,  # pelvis trans
                                0   , 0   , 0   ,  # pelvis rot
@@ -195,8 +195,8 @@ if __name__ == "__main__":
     # ocp_optimal_gravity, sol_optimal_gravity = OptimalControlProgram.load(optimal_gravity_filename)
     # states_optimal_gravity, controls_optimal_gravity, params_optimal_gravity = Data.get_data(ocp_optimal_gravity, sol_optimal_gravity, get_parameters=True)
 
-    filename = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/' + subject + '/' + os.path.splitext(c3d_name)[0] + '_optimal_gravity_N' + str(adjusted_number_shooting_points) + '_mixed_EKF' + ".pkl"
-    filename_full = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/' + subject + '/' + os.path.splitext(c3d_name)[0] + '_optimal_gravity_N' + str(frames.stop - frames.start - 1) + '_mixed_EKF' + ".pkl"
+    filename = '/home/andre/bioptim/examples/optimal_gravity_ocp/Solutions/' + subject + '/' + os.path.splitext(c3d_name)[0] + '_optimal_gravity_N' + str(adjusted_number_shooting_points) + '_mixed_EKF' + ".pkl"
+    filename_full = '/home/andre/bioptim/examples/optimal_gravity_ocp/Solutions/' + subject + '/' + os.path.splitext(c3d_name)[0] + '_optimal_gravity_N' + str(frames.stop - frames.start - 1) + '_mixed_EKF' + ".pkl"
     filename_acados = '/home/andre/bioptim/examples/optimal_gravity_ocp/Solutions/' + subject + '/' + os.path.splitext(c3d_name)[0] + '_optimal_gravity_N' + str(adjusted_number_shooting_points) + '_mixed_EKF_ACADOS' + ".pkl"
     filename_acados_full = '/home/andre/bioptim/examples/optimal_gravity_ocp/Solutions/' + subject + '/' + os.path.splitext(c3d_name)[0] + '_optimal_gravity_N' + str(frames.stop - frames.start - 1) + '_mixed_EKF_ACADOS' + ".pkl"
 

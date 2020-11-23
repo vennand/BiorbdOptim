@@ -47,7 +47,7 @@ class PenaltyFunctionAbstract:
             states_idx = PenaltyFunctionAbstract._check_and_fill_index(penalty.index, nlp.nx, "state_idx")
             target = None
             if penalty.target is not None:
-                target = PenaltyFunctionAbstract._check_and_fill_tracking_data_size(
+                target, target_nan = PenaltyFunctionAbstract._check_and_fill_tracking_data_size(
                     penalty.target, (len(states_idx), len(x))
                 )
 
@@ -93,7 +93,7 @@ class PenaltyFunctionAbstract:
             )
             target = None
             if penalty.target is not None:
-                target = PenaltyFunctionAbstract._check_and_fill_tracking_data_size(
+                target, target_nan = PenaltyFunctionAbstract._check_and_fill_tracking_data_size(
                     penalty.target, (3, len(markers_idx), len(x))
                 )
             PenaltyFunctionAbstract._add_to_casadi_func(nlp, "biorbd_markers", nlp.model.markers, nlp.q)
@@ -102,6 +102,9 @@ class PenaltyFunctionAbstract:
                 q = nlp.mapping["q"].expand.map(v[:nq])
                 val = nlp.casadi_func["biorbd_markers"](q)[axis_to_track, markers_idx]
                 penalty.sliced_target = target[axis_to_track, :, i] if target is not None else None
+                if penalty.sliced_target is not None:
+                    penalty.sliced_target[target_nan[axis_to_track, :, i]] = 0
+                    val[target_nan[axis_to_track, :, i]] = 0
                 penalty.type.get_type().add_to_penalty(ocp, nlp, val, penalty)
 
         @staticmethod
@@ -248,7 +251,7 @@ class PenaltyFunctionAbstract:
 
             target = None
             if penalty.target is not None:
-                target = PenaltyFunctionAbstract._check_and_fill_tracking_data_size(
+                target, _ = PenaltyFunctionAbstract._check_and_fill_tracking_data_size(
                     penalty.target, (len(controls_idx), len(u))
                 )
                 PenaltyFunctionAbstract._add_track_data_to_plot(
@@ -598,10 +601,12 @@ class PenaltyFunctionAbstract:
                 raise RuntimeError(
                     f"data_to_track {data_to_track.shape} doesn't correspond to expected minimum size {target_size}"
                 )
+            data_nan = np.isnan(data_to_track)
         else:
             raise ValueError("COUCOU!!!!")
             data_to_track = np.zeros(target_size)
-        return data_to_track
+            data_nan = np.zeros(target_size, dtype=bool)
+        return data_to_track, data_nan
 
     @staticmethod
     def _check_idx(name, elements, max_nb_elements=inf, min_nb_elements=0):

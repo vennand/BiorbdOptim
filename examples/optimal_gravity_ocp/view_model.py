@@ -1,13 +1,13 @@
 import numpy as np
-from BiorbdViz import BiorbdViz
+from bioviz import Viz
 
 subject = 'DoCi'
 
 data_path = '/home/andre/Optimisation/data/' + subject + '/'
 model_path = data_path + 'Model/'
-model_name = 'DoCi.s2mMod'
+model_name = 'DoCi_Elbow_RT_Changed_DoF.s2mMod'
 
-b = BiorbdViz(model_path=model_path+model_name)
+b = Viz(model_path=model_path+model_name)
 b.vtk_window.change_background_color((1, 1, 1))
 animate_by_hand = -1
 
