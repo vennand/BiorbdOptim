@@ -42,9 +42,9 @@ def states_to_markers(biorbd_model, states):
     n_frames = q.shape[1]
 
     markers = np.ndarray((3, n_mark, q.shape[1]))
-    symbolic_states = MX.sym("x", n_q, 1)
+    symbolic_states = MX.sym("q", n_q, 1)
     markers_func = Function(
-        "ForwardKin", [symbolic_states], [biorbd_model.markers(symbolic_states)], ["q"], ["markers"]
+        "markers_kyn", [symbolic_states], [biorbd_model.markers(symbolic_states)], ["q"], ["markers"]
     ).expand()
     for i in range(n_frames):
         markers[:, :, i] = markers_func(q[:, i])
@@ -75,13 +75,13 @@ def dynamics(biorbd_model, q_ref, qd_ref, qdd_ref=None, tau_ref=None):
 
 
 if __name__ == "__main__":
-    # subject = 'DoCi'
+    subject = 'DoCi'
     # subject = 'JeCh'
     # subject = 'BeLa'
     # subject = 'GuSe'
-    subject = 'SaMi'
+    # subject = 'SaMi'
     number_shooting_points = 100
-    trial = '821_seul_4'
+    trial = '44_1'
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
     model_path = data_path + 'Model/'
@@ -135,6 +135,7 @@ if __name__ == "__main__":
     states_kalman = {'q': q_kalman, 'q_dot': qdot_kalman}
     controls_kalman = {'tau': id(q_kalman, qdot_kalman, qddot_kalman)}
 
+    load_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
     load_variables_name = load_path + subject + '/Kalman/' + os.path.splitext(c3d_name)[0] + ".pkl"
     with open(load_variables_name, 'rb') as handle:
         kalman_states = pickle.load(handle)
@@ -149,7 +150,6 @@ if __name__ == "__main__":
     states, controls = Data.get_data(ocp, sol)
     qddot = fd(states['q'], states['q_dot'], controls['tau'])
 
-    load_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
     optimal_gravity_filename = load_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF'
     # ocp_optimal_gravity, sol_optimal_gravity = OptimalControlProgram.load(optimal_gravity_filename + '.bo')
     # states_optimal_gravity, controls_optimal_gravity, params_optimal_gravity = Data.get_data(ocp_optimal_gravity, sol_optimal_gravity, get_parameters=True)
@@ -174,9 +174,9 @@ if __name__ == "__main__":
 
     # --- Simulate --- #
 
-    sol_simulate_OGE = Simulate.from_data(ocp, [states_optimal_gravity, controls_optimal_gravity], single_shoot=False)
-    sol_simulate_OE = Simulate.from_data(ocp, [states, controls], single_shoot=False)
-    ShowResult(ocp, sol_simulate_OE).graphs()
+    # sol_simulate_OGE = Simulate.from_data(ocp, [states_optimal_gravity, controls_optimal_gravity], single_shoot=False)
+    # sol_simulate_OE = Simulate.from_data(ocp, [states, controls], single_shoot=False)
+    # ShowResult(ocp, sol_simulate_OE).graphs()
 
     # --- Stats --- #
     #OE

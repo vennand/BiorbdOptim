@@ -222,13 +222,13 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
 
 if __name__ == "__main__":
     start = time.time()
-    # subject = 'DoCi'
+    subject = 'DoCi'
     # subject = 'JeCh'
     # subject = 'BeLa'
     # subject = 'GuSe'
-    subject = 'SaMi'
+    # subject = 'SaMi'
     number_shooting_points = 1000
-    trial = '821_seul_4'
+    trial = '44_1'
     print('Subject: ', subject, ', Trial: ', trial)
 
     use_ACADOS = False
@@ -338,7 +338,7 @@ if __name__ == "__main__":
             "sim_method_num_steps": 4}
         sol = ocp.solve(solver=Solver.ACADOS, solver_options=options, show_online_optim=False)
     else:
-        options = {"max_iter": 3000, "tol": 1e-6, "constr_viol_tol": 1e-3, "linear_solver": "ma57"}
+        options = {"max_iter": 500, "tol": 1e-6, "constr_viol_tol": 1e-3, "linear_solver": "ma57"}
         sol = ocp.solve(solver=Solver.IPOPT, solver_options=options, show_online_optim=False)
 
     # --- Get the results --- #

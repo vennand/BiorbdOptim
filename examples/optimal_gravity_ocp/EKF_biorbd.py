@@ -5,6 +5,7 @@ import biorbd
 import ezc3d
 import os
 import pickle
+import time
 from load_data_filename import load_data_filename
 from reorder_markers import reorder_markers
 
@@ -21,12 +22,14 @@ from reorder_markers import reorder_markers
 # Please also note that kalman will be VERY slow if compiled in debug
 #
 
+start = time.time()
+
 # subject = 'DoCi'
 # subject = 'JeCh'
 # subject = 'BeLa'
 # subject = 'GuSe'
 subject = 'SaMi'
-trial = '821_822_5'
+trial = '821_822_3'
 
 data_path = '/home/andre/Optimisation/data/' + subject + '/'
 model_path = data_path + 'Model/'
@@ -80,3 +83,6 @@ with open(save_variables_name, 'wb') as handle:
 # b = BiorbdViz.BiorbdViz(loaded_model=biorbd_model)
 # b.load_movement(q_recons)
 # b.exec()
+
+stop = time.time()
+print('Runtime: ', stop - start)
