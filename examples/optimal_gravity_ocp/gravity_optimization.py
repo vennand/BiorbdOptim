@@ -146,6 +146,7 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
     # --- Options --- #
     torque_min, torque_max = -300, 300
     n_q = biorbd_model.nbQ()
+    n_qdot = biorbd_model.nbQdot()
     n_tau = biorbd_model.nbGeneralizedTorque()
 
     # Add objective functions
@@ -162,6 +163,8 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
     else:
         objective_functions.add(Objective.Lagrange.TRACK_STATE, weight=1, target=state_ref[range(n_q), :],
              index=range(n_q))
+    # objective_functions.add(Objective.Lagrange.MINIMIZE_STATE, weight=1e-6, target=state_ref[range(n_q, n_q + n_qdot), :], index=range(n_q, n_q + n_qdot))
+    # objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE_DERIVATIVE, weight=1e-6)
     objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=1e-7)
 
     # Dynamics
@@ -227,7 +230,7 @@ if __name__ == "__main__":
     # subject = 'BeLa'
     # subject = 'GuSe'
     # subject = 'SaMi'
-    number_shooting_points = 1000
+    number_shooting_points = 100
     trial = '44_1'
     print('Subject: ', subject, ', Trial: ', trial)
 

@@ -43,11 +43,13 @@ def states_to_markers(biorbd_model, states):
 
     markers = np.ndarray((3, n_mark, q.shape[1]))
     symbolic_states = MX.sym("q", n_q, 1)
-    markers_func = Function(
-        "markers_kyn", [symbolic_states], [biorbd_model.markers(symbolic_states)], ["q"], ["markers"]
-    ).expand()
+    # markers_func = Function(
+    #     "markers_kyn", [symbolic_states], [biorbd_model.markers(symbolic_states)], ["q"], ["markers"]
+    # ).expand()
+    markers_func = biorbd.to_casadi_func("markers", biorbd_model.markers, symbolic_states)
     for i in range(n_frames):
-        markers[:, :, i] = markers_func(q[:, i])
+        # markers[:, :, i] = markers_func(q[:, i])
+        markers[:, :, i] = markers_func(q[:, i]).full()
 
     return markers
 
@@ -109,7 +111,7 @@ if __name__ == "__main__":
     tau = MX.sym("Tau", biorbd_model.nbQddot(), 1)
 
     id = biorbd.to_casadi_func("id", biorbd_model.InverseDynamics, q, qdot, qddot)
-    am = biorbd.to_casadi_func("am", biorbd_model.CalcAngularMomentum, q, qdot, qddot, True)
+    am = biorbd.to_casadi_func("am", biorbd_model.CalcAngularMomentum, q, qdot, True)
     fd = biorbd.to_casadi_func("fd", biorbd_model.ForwardDynamics, q, qdot, tau)
     mcm = biorbd.to_casadi_func("fd", biorbd_model.mass)
     vcm = biorbd.to_casadi_func("fd", biorbd_model.CoMdot, q, qdot)
@@ -135,7 +137,7 @@ if __name__ == "__main__":
     states_kalman = {'q': q_kalman, 'q_dot': qdot_kalman}
     controls_kalman = {'tau': id(q_kalman, qdot_kalman, qddot_kalman)}
 
-    load_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
+    load_path = '/home/andre/bioptim/examples/optimal_gravity_ocp/Solutions/'
     load_variables_name = load_path + subject + '/Kalman/' + os.path.splitext(c3d_name)[0] + ".pkl"
     with open(load_variables_name, 'rb') as handle:
         kalman_states = pickle.load(handle)
@@ -148,7 +150,7 @@ if __name__ == "__main__":
 
     # --- Get the results --- #
     states, controls = Data.get_data(ocp, sol)
-    qddot = fd(states['q'], states['q_dot'], controls['tau'])
+    # qddot = fd(states['q'], states['q_dot'], controls['tau'])
 
     optimal_gravity_filename = load_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF'
     # ocp_optimal_gravity, sol_optimal_gravity = OptimalControlProgram.load(optimal_gravity_filename + '.bo')
@@ -163,7 +165,7 @@ if __name__ == "__main__":
 
 
     angle = params_optimal_gravity["gravity_angle"].squeeze()
-    qddot_optimal_gravity = fd(states_optimal_gravity['q'], states_optimal_gravity['q_dot'], controls_optimal_gravity['tau'])
+    # qddot_optimal_gravity = fd(states_optimal_gravity['q'], states_optimal_gravity['q_dot'], controls_optimal_gravity['tau'])
 
     rotating_gravity(biorbd_model, angle.squeeze())
     markers = states_to_markers(biorbd_model, states)
@@ -176,7 +178,18 @@ if __name__ == "__main__":
 
     # sol_simulate_OGE = Simulate.from_data(ocp, [states_optimal_gravity, controls_optimal_gravity], single_shoot=False)
     # sol_simulate_OE = Simulate.from_data(ocp, [states, controls], single_shoot=False)
-    # ShowResult(ocp, sol_simulate_OE).graphs()
+    # ShowResult(ocp, sol_simulate_OGE).graphs()
+
+    # states_OGE_sim, controls_OGE_sim = Data.get_data(ocp, sol_simulate_OGE)#, integrate=True)
+    # states_OE_sim, controls_OE_sim = Data.get_data(ocp, sol_simulate_OE, integrate=True)
+
+    # qddot_OGE_sim = fd(states_OGE_sim['q'], states_OGE_sim['q_dot'], controls_OGE_sim['tau'])
+    # qddot_OE_sim = fd(states_OE_sim['q'], states_OE_sim['q_dot'], controls_OE_sim['tau'])
+    # qddot_OGE_sim = fd(states_OGE_sim['q'], states_OGE_sim['q_dot'],np.repeat(controls_OGE_sim['tau'], 2, axis=1)[:, :-1])
+    # # qddot_OE_sim = fd(states_OE_sim['q'], states_OE_sim['q_dot'], np.repeat(controls_OE_sim['tau'], 2, axis=1)[:, :-1])
+
+    # sim_step_size = adjusted_number_shooting_points / (states_OE_sim['q'].shape[1] - 1)
+    # sim_step_size = adjusted_number_shooting_points / (states_OGE_sim['q'].shape[1] - 1)
 
     # --- Stats --- #
     #OE
@@ -236,9 +249,9 @@ if __name__ == "__main__":
     # print('Q: ', average_difference_between_Q_OE, u"\u00B1", sd_difference_between_Q_OE)
     # print('Qd: ', average_difference_between_Qd_OE, u"\u00B1", sd_difference_between_Qd_OE)
 
-    momentum = am(states['q'], states['q_dot'], qddot)
-    momentum_optimal_gravity = am(states_optimal_gravity['q'], states_optimal_gravity['q_dot'], qddot_optimal_gravity)
-    momentum_kalman = am(q_kalman, qdot_kalman, qddot_kalman)
+    momentum = am(states['q'], states['q_dot'])
+    momentum_optimal_gravity = am(states_optimal_gravity['q'], states_optimal_gravity['q_dot'])
+    momentum_kalman = am(q_kalman, qdot_kalman)
 
     total_mass = mcm()['o0'].full()
     linear_momentum = total_mass * vcm(states['q'], states['q_dot'])
@@ -311,16 +324,19 @@ if __name__ == "__main__":
                  'Right thigh', 'Right leg', 'Right foot',
                  'Left thigh', 'Left leg', 'Left foot',
                  ]
-    # dofs = range(0, 6)
+    # dofs = [range(0, 6), range(6, 9), range(9, 12),
+    #         range(12, 14), range(14, 17), range(17, 19), range(19, 21)]
     for idx_dof, dof in enumerate(dofs):
         fig = pyplot.figure()
         pyplot.plot(states_kalman['q'][dof, :].T, color='blue')
         pyplot.plot(states_optimal_gravity['q'][dof, :].T, color='red')
         pyplot.plot(states['q'][dof, :].T, color='green')
+        # pyplot.plot(states_OGE_sim['q'][dof, :].T, color='orange', linestyle=':')
 
-        # fig = pyplot.figure()
-        # pyplot.plot(qdot_ref_matlab[dof, :].T, color='blue')
-        # pyplot.plot(qdot_ref_biorbd[dof, :].T, color='red')
+        fig = pyplot.figure()
+        pyplot.plot(states_optimal_gravity['q_dot'][dof, :].T, color='blue')
+        # pyplot.plot(states_OGE_sim['q_dot'][dof, :].T, color='orange', linestyle=':')
+        pyplot.plot(controls_optimal_gravity['tau'][dof, :].T, color='red')
         #
         # fig = pyplot.figure()
         # pyplot.plot(qddot_ref_matlab[dof, :].T, color='blue')
@@ -335,4 +351,4 @@ if __name__ == "__main__":
     pyplot.show()
 
     # --- Show results --- #
-    ShowResult(ocp, sol).animate(nb_frames=adjusted_number_shooting_points)
+    # ShowResult(ocp, sol).animate(nb_frames=adjusted_number_shooting_points)

@@ -154,13 +154,13 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, markers_ref, q
 
 if __name__ == "__main__":
     start = time.time()
-    subject = 'DoCi'
+    # subject = 'DoCi'
     # subject = 'JeCh'
     # subject = 'BeLa'
     # subject = 'GuSe'
-    # subject = 'SaMi'
+    subject = 'SaMi'
     number_shooting_points = 100
-    trial = '44_1'
+    trial = '821_seul_3'
     print('Subject: ', subject, ', Trial: ', trial)
 
     use_ACADOS = False
