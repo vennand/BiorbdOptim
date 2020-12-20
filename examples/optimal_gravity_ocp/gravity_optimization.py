@@ -247,6 +247,7 @@ if __name__ == "__main__":
     subject = 'SaMi'
     number_shooting_points = 1000
     trial = '821_contact_2'
+    print('Subject: ', subject, ', Trial: ', trial)
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
     model_path = data_path + 'Model/'

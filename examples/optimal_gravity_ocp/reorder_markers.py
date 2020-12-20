@@ -17,7 +17,7 @@ def reorder_markers(biorbd_model, c3d, frames, step_size=1, broken_dofs=None):
             labels_index.append(index_model)
             missing_markers_index.append(index_model)
 
-    markers_reordered = np.zeros((3, markers.shape[1], markers.shape[2]))
+    markers_reordered = np.zeros((3, len(model_labels), markers.shape[2]))
     for index, label_index in enumerate(labels_index):
         if index in missing_markers_index:
             markers_reordered[:, index, :] = np.nan

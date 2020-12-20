@@ -37,9 +37,9 @@ def rotating_gravity(biorbd_model, value):
 # subject = 'DoCi'
 # subject = 'JeCh'
 # subject = 'BeLa'
-# subject = 'GuSe'
-subject = 'SaMi'
-trial = '821_seul_1'
+subject = 'GuSe'
+# subject = 'SaMi'
+trial = '44_3'
 number_shooting_points = 100
 
 data_path = '/home/andre/Optimisation/data/' + subject + '/'
@@ -94,7 +94,7 @@ q_ref = data['states']['q']
 gravity_angle = data['gravity_angle']
 rotating_gravity(biorbd_model, gravity_angle)
 
-frequency = 200
+frequency = c3d['header']['points']['frame_rate']
 # q_ref, qdot_ref, qddot_ref = correct_Kalman(q_ref, qdot_ref, qddot_ref, frequency)
 
 markers_reordered, _ = reorder_markers(biorbd_model, c3d, frames, step_size)
@@ -111,12 +111,12 @@ ax = Axes3D(fig)
 
 
 for frame in range(markers.shape[2]):
-    ax.scatter(markers[0, :, frame], markers[1, :, frame], markers[2, :, frame], color='blue')
+    ax.scatter(markers[0, :, frame], markers[1, :, frame], markers[2, :, frame], color='blue', marker='x')
     ax.scatter(markers_reordered[0, :, frame], markers_reordered[1, :, frame], markers_reordered[2, :, frame], color='orange')
     ax.set_xlim3d(-2, 2)
     ax.set_ylim3d(-2, 2)
     ax.set_zlim3d(0, 2)
-    pyplot.pause(0.001)
+    pyplot.pause(0.1)
     pyplot.draw()
     ax.clear()
     print(frame)

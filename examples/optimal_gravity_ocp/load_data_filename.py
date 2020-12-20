@@ -122,19 +122,19 @@ def load_data_filename(subject, trial):
             qd_name = 'Sa_821_822_3_MOD200.00_GenderF_SaMig_V.mat'
             qdd_name = 'Sa_821_822_3_MOD200.00_GenderF_SaMig_A.mat'
             frames = range(3139, 3440)
-        elif trial == '821_822_4':
-            c3d_name = 'Sa_821_822_4.c3d'
-            q_name = 'Sa_821_822_4_MOD200.00_GenderF_SaMig_Q.mat'
-            qd_name = 'Sa_821_822_4_MOD200.00_GenderF_SaMig_V.mat'
-            qdd_name = 'Sa_821_822_4_MOD200.00_GenderF_SaMig_A.mat'
-            # frames = range(3509, 3820)
-            frames = range(3909, 4190)
-        elif trial == '821_822_5':
-            c3d_name = 'Sa_821_822_5.c3d'
-            q_name = 'Sa_821_822_5_MOD200.00_GenderF_SaMig_Q.mat'
-            qd_name = 'Sa_821_822_5_MOD200.00_GenderF_SaMig_V.mat'
-            qdd_name = 'Sa_821_822_5_MOD200.00_GenderF_SaMig_A.mat'
-            frames = range(3339, 3630)
+        # elif trial == '821_822_4':
+        #     c3d_name = 'Sa_821_822_4.c3d'
+        #     q_name = 'Sa_821_822_4_MOD200.00_GenderF_SaMig_Q.mat'
+        #     qd_name = 'Sa_821_822_4_MOD200.00_GenderF_SaMig_V.mat'
+        #     qdd_name = 'Sa_821_822_4_MOD200.00_GenderF_SaMig_A.mat'
+        #     # frames = range(3509, 3820)
+        #     frames = range(3909, 4190)
+        # elif trial == '821_822_5':
+        #     c3d_name = 'Sa_821_822_5.c3d'
+        #     q_name = 'Sa_821_822_5_MOD200.00_GenderF_SaMig_Q.mat'
+        #     qd_name = 'Sa_821_822_5_MOD200.00_GenderF_SaMig_V.mat'
+        #     qdd_name = 'Sa_821_822_5_MOD200.00_GenderF_SaMig_A.mat'
+        #     frames = range(3339, 3630)
         elif trial == '821_contact_1':
             c3d_name = 'Sa_821_contact_1.c3d'
             q_name = 'Sa_821_contact_1_MOD200.00_GenderF_SaMig_Q.mat'

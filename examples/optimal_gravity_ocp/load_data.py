@@ -38,7 +38,7 @@ if __name__ == "__main__":
     # subject = 'GuSe'
     subject = 'SaMi'
     number_shooting_points = 100
-    trial = '822_contact_1'
+    trial = '821_822_3'
 
     data_filename = load_data_filename(subject, trial)
     model_name = data_filename['model']
@@ -77,4 +77,4 @@ if __name__ == "__main__":
     #                 handle, protocol=3)
 
     # --- Show results --- #
-    ShowResult(ocp, sol).animate(nb_frames=adjusted_number_shooting_points)
+    # ShowResult(ocp, sol).animate(nb_frames=adjusted_number_shooting_points)
