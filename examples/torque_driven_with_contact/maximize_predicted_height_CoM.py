@@ -1,11 +1,12 @@
 import biorbd
+import numpy as np
 
 from bioptim import (
     OptimalControlProgram,
     ObjectiveList,
-    Objective,
-    DynamicsTypeList,
-    DynamicsType,
+    ObjectiveFcn,
+    DynamicsList,
+    DynamicsFcn,
     BidirectionalMapping,
     Mapping,
     BoundsList,
@@ -13,10 +14,22 @@ from bioptim import (
     InitialGuessList,
     ShowResult,
     OdeSolver,
+    Axe,
+    ConstraintList,
+    ConstraintFcn,
+    Node,
 )
 
 
-def prepare_ocp(model_path, phase_time, number_shooting_points, use_actuators=False, ode_solver=OdeSolver.RK):
+def prepare_ocp(
+    model_path,
+    phase_time,
+    number_shooting_points,
+    use_actuators=False,
+    ode_solver=OdeSolver.RK4,
+    objective_name="MINIMIZE_PREDICTED_COM_HEIGHT",
+    com_constraints=False,
+):
     # --- Options --- #
     # Model path
     biorbd_model = biorbd.Model(model_path)
@@ -30,15 +43,33 @@ def prepare_ocp(model_path, phase_time, number_shooting_points, use_actuators=Fa
 
     # Add objective functions
     objective_functions = ObjectiveList()
-    objective_functions.add(Objective.Mayer.MINIMIZE_PREDICTED_COM_HEIGHT, weight=-1)
-    objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=1 / 100)
+    if objective_name == "MINIMIZE_PREDICTED_COM_HEIGHT":
+        objective_functions.add(ObjectiveFcn.Mayer.MINIMIZE_PREDICTED_COM_HEIGHT, weight=-1)
+    elif objective_name == "MINIMIZE_COM_POSITION":
+        objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_COM_POSITION, axis=Axe.Z, weight=-1)
+    elif objective_name == "MINIMIZE_COM_VELOCITY":
+        objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_COM_VELOCITY, axis=Axe.Z, weight=-1)
+    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_TORQUE, weight=1 / 100)
 
     # Dynamics
-    dynamics = DynamicsTypeList()
+    dynamics = DynamicsList()
     if use_actuators:
-        dynamics.add(DynamicsType.TORQUE_ACTIVATIONS_DRIVEN_WITH_CONTACT)
+        dynamics.add(DynamicsFcn.TORQUE_ACTIVATIONS_DRIVEN_WITH_CONTACT)
     else:
-        dynamics.add(DynamicsType.TORQUE_DRIVEN_WITH_CONTACT)
+        dynamics.add(DynamicsFcn.TORQUE_DRIVEN_WITH_CONTACT)
+
+    # Constraints
+    constraints = ConstraintList()
+    if com_constraints:
+        constraints.add(
+            ConstraintFcn.COM_VELOCITY,
+            node=Node.ALL,
+            min_bound=np.array([-100, -100, -100]),
+            max_bound=np.array([100, 100, 100]),
+        )
+        constraints.add(
+            ConstraintFcn.COM_POSITION, node=Node.ALL, min_bound=np.array([-1, -1, -1]), max_bound=np.array([1, 1, 1])
+        )
 
     # Path constraint
     nb_q = biorbd_model.nbQ()
@@ -47,7 +78,7 @@ def prepare_ocp(model_path, phase_time, number_shooting_points, use_actuators=Fa
 
     # Initialize x_bounds
     x_bounds = BoundsList()
-    x_bounds.add(QAndQDotBounds(biorbd_model))
+    x_bounds.add(bounds=QAndQDotBounds(biorbd_model))
     x_bounds[0][:, 0] = pose_at_first_node + [0] * nb_qdot
 
     # Initial guess
@@ -56,7 +87,7 @@ def prepare_ocp(model_path, phase_time, number_shooting_points, use_actuators=Fa
 
     # Define control path constraint
     u_bounds = BoundsList()
-    u_bounds.add([[tau_min] * tau_mapping.reduce.len, [tau_max] * tau_mapping.reduce.len])
+    u_bounds.add([tau_min] * tau_mapping.reduce.len, [tau_max] * tau_mapping.reduce.len)
 
     u_init = InitialGuessList()
     u_init.add([tau_init] * tau_mapping.reduce.len)
@@ -72,6 +103,7 @@ def prepare_ocp(model_path, phase_time, number_shooting_points, use_actuators=Fa
         x_bounds,
         u_bounds,
         objective_functions,
+        constraints=constraints,
         tau_mapping=tau_mapping,
         ode_solver=ode_solver,
     )
@@ -81,7 +113,14 @@ if __name__ == "__main__":
     model_path = "2segments_4dof_2contacts.bioMod"
     t = 0.5
     ns = 20
-    ocp = prepare_ocp(model_path=model_path, phase_time=t, number_shooting_points=ns, use_actuators=False)
+    ocp = prepare_ocp(
+        model_path=model_path,
+        phase_time=t,
+        number_shooting_points=ns,
+        use_actuators=False,
+        objective_name="MINIMIZE_COM_VELOCITY",
+        com_constraints=True,
+    )
 
     # --- Solve the program --- #
     sol = ocp.solve(show_online_optim=True)

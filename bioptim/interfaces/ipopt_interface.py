@@ -16,6 +16,9 @@ class IpoptInterface(SolverInterface):
         self.options_common = {}
         self.opts = None
 
+        self.lam_g = None
+        self.lam_x = None
+
         self.ipopt_nlp = None
         self.ipopt_limits = None
         self.ocp_solver = None
@@ -69,6 +72,11 @@ class IpoptInterface(SolverInterface):
             "x0": self.ocp.V_init.init,
         }
 
+        if self.lam_g is not None:
+            self.ipopt_limits["lam_g0"] = self.lam_g
+        if self.lam_x is not None:
+            self.ipopt_limits["lam_x0"] = self.lam_x
+
         solver = nlpsol("nlpsol", "ipopt", self.ipopt_nlp, self.opts)
 
         # Solve the problem
@@ -79,18 +87,22 @@ class IpoptInterface(SolverInterface):
 
         return self.out
 
+    def set_lagrange_multiplier(self, sol):
+        self.lam_g = sol["lam_g"]
+        self.lam_x = sol["lam_x"]
+
     def __dispatch_bounds(self):
         all_g = self.ocp.CX()
         all_g_bounds = Bounds(interpolation=InterpolationType.CONSTANT)
         for i in range(len(self.ocp.g)):
             for j in range(len(self.ocp.g[i])):
-                all_g = vertcat(all_g, self.ocp.g[i][j])
-                all_g_bounds.concatenate(self.ocp.g_bounds[i][j])
+                all_g = vertcat(all_g, self.ocp.g[i][j]["val"])
+                all_g_bounds.concatenate(self.ocp.g[i][j]["bounds"])
         for nlp in self.ocp.nlp:
             for i in range(len(nlp.g)):
                 for j in range(len(nlp.g[i])):
-                    all_g = vertcat(all_g, nlp.g[i][j])
-                    all_g_bounds.concatenate(nlp.g_bounds[i][j])
+                    all_g = vertcat(all_g, nlp.g[i][j]["val"])
+                    all_g_bounds.concatenate(nlp.g[i][j]["bounds"])
 
         if isinstance(all_g_bounds.min, (SX, MX)) or isinstance(all_g_bounds.max, (SX, MX)):
             raise RuntimeError("Ipopt doesn't support SX/MX types in constraints bounds")

@@ -7,7 +7,7 @@ An optimization framework that links CasADi, ipopt and biorbd for Optimal Contro
 |---|---|
 | License | <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-success" alt="License"/></a> |
 | Continuous integration | [![Build Status](https://travis-ci.org/pyomeca/bioptim.svg?branch=master)](https://travis-ci.org/pyomeca/bioptim) |
-|  Code coverage | [![codecov](https://codecov.io/gh/pyomeca/bioptim/branch/master/graph/badge.svg)](https://codecov.io/gh/pyomeca/bioptim) |
+| Code coverage | [![codecov](https://codecov.io/gh/pyomeca/bioptim/branch/master/graph/badge.svg?token=NK1V6QE2CK)](https://codecov.io/gh/pyomeca/bioptim) |
 
 # How to install 
 The way to install `bioptim` on your computer is to install from the sources. 
@@ -44,11 +44,11 @@ TODO + It is expected to slow down the optimization by about 15%
 
 ## Citing
 
-If you use `biorb-optim`, we would be grateful if you could cite it as follows:
+If you use `bioptim`, we would be grateful if you could cite it as follows:
 
-@misc{Michaud2018bioptim,
-    author = {Michaud, Benjamin and Begon, Mickael},
-    title = {bioptim: An optimal control framework for biomechanical analyses using biorbd},
+@misc{Michaud2020bioptim,
+    author = {Michaud, Benjamin and Bailly, Francois and Begon, Mickael et al.},
+    title = {bioptim, a Python interface for Musculoskeletal Optimal Control in Biomechanics},
     howpublished={Web page},
     url = {https://github.com/pyomeca/bioptim},
     year = {2020}
