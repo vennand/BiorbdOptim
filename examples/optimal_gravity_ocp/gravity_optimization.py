@@ -164,7 +164,7 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
         objective_functions.add(Objective.Lagrange.TRACK_STATE, weight=1, target=state_ref[range(n_q), :],
              index=range(n_q))
     # objective_functions.add(Objective.Lagrange.MINIMIZE_STATE, weight=1e-6, target=state_ref[range(n_q, n_q + n_qdot), :], index=range(n_q, n_q + n_qdot))
-    # objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE_DERIVATIVE, weight=1e-6)
+    objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE_DERIVATIVE, weight=1e-5)
     objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=1e-7)
 
     # Dynamics
@@ -352,7 +352,7 @@ if __name__ == "__main__":
     if use_ACADOS:
         save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF_ACADOS'
     else:
-        save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF'
+        save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF_MinTorqDiff-5'
     ocp.save(sol, save_name + ".bo")
 
     biorbd_model = biorbd.Model(model_path + model_name)
