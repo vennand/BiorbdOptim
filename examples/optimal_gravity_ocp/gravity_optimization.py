@@ -15,9 +15,9 @@ from reorder_markers import reorder_markers
 from bioptim import (
     OptimalControlProgram,
     ObjectiveList,
-    Objective,
-    DynamicsTypeList,
-    DynamicsType,
+    ObjectiveFcn,
+    DynamicsList,
+    DynamicsFcn,
     BoundsList,
     Bounds,
     InitialGuessList,
@@ -27,6 +27,7 @@ from bioptim import (
     Data,
     ParameterList,
     Solver,
+    OdeSolver,
 )
 
 
@@ -154,26 +155,26 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
     objective_functions = ObjectiveList()
     if markers_idx_ref and markers_ref is not None:
         for markers_idx_range in markers_idx_ref:
-            objective_functions.add(Objective.Lagrange.TRACK_MARKERS, weight=1, target=markers_ref[markers_idx_range, :],
+            objective_functions.add(ObjectiveFcn.Lagrange.TRACK_MARKERS, weight=1, target=markers_ref[markers_idx_range, :],
                                     index=markers_idx_range)
     if states_idx_ref is not None:
         for states_idx_range in states_idx_ref:
-            objective_functions.add(Objective.Lagrange.TRACK_STATE, weight=1, target=state_ref[states_idx_range, :],
+            objective_functions.add(ObjectiveFcn.Lagrange.TRACK_STATE, weight=1, target=state_ref[states_idx_range, :],
                                     index=states_idx_range)
     else:
-        objective_functions.add(Objective.Lagrange.TRACK_STATE, weight=1, target=state_ref[range(n_q), :],
+        objective_functions.add(ObjectiveFcn.Lagrange.TRACK_STATE, weight=1, target=state_ref[range(n_q), :],
              index=range(n_q))
-    # objective_functions.add(Objective.Lagrange.MINIMIZE_STATE, weight=1e-6, target=state_ref[range(n_q, n_q + n_qdot), :], index=range(n_q, n_q + n_qdot))
-    objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE_DERIVATIVE, weight=1e-5)
-    objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=1e-7)
+    # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, weight=1e-6, target=state_ref[range(n_q, n_q + n_qdot), :], index=range(n_q, n_q + n_qdot))
+    # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_TORQUE_DERIVATIVE, weight=1e-5)
+    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_TORQUE, weight=1e-7)
 
     # Dynamics
-    dynamics = DynamicsTypeList()
-    dynamics.add(DynamicsType.TORQUE_DRIVEN)
+    dynamics = DynamicsList()
+    dynamics.add(DynamicsFcn.TORQUE_DRIVEN)
 
     # Path constraint
     X_bounds = BoundsList()
-    X_bounds.add(Bounds(min_bound=xmin, max_bound=xmax))
+    X_bounds.add(min_bound=xmin, max_bound=xmax)
 
 
     # Initial guess
@@ -184,7 +185,7 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
 
     # Define control path constraint
     U_bounds = BoundsList()
-    U_bounds.add(Bounds(min_bound=[torque_min] * n_tau, max_bound=[torque_max] * n_tau))
+    U_bounds.add(min_bound=[torque_min] * n_tau, max_bound=[torque_max] * n_tau)
     U_bounds[0].min[:6, :] = 0
     U_bounds[0].max[:6, :] = 0
 
@@ -216,7 +217,8 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
         X_bounds,
         U_bounds,
         objective_functions,
-        nb_integration_steps=4,
+        ode_solver=OdeSolver.RK8,
+        nb_integration_steps=2,
         parameters=parameters,
         nb_threads=4,
         use_SX=use_ACADOS,
@@ -352,7 +354,7 @@ if __name__ == "__main__":
     if use_ACADOS:
         save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF_ACADOS'
     else:
-        save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF_MinTorqDiff-5'
+        save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF_RK8'
     ocp.save(sol, save_name + ".bo")
 
     biorbd_model = biorbd.Model(model_path + model_name)

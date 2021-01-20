@@ -16,9 +16,9 @@ from reorder_markers import reorder_markers
 from bioptim import (
     OptimalControlProgram,
     ObjectiveList,
-    Objective,
-    DynamicsTypeList,
-    DynamicsType,
+    ObjectiveFcn,
+    DynamicsList,
+    DynamicsFcn,
     BoundsList,
     Bounds,
     InitialGuessList,
@@ -27,6 +27,7 @@ from bioptim import (
     InterpolationType,
     Data,
     Solver,
+    OdeSolver,
 )
 
 
@@ -80,11 +81,11 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, markers_ref, q
     # Add objective functions
     state_ref = np.concatenate((q_init, qdot_init))
     objective_functions = ObjectiveList()
-    objective_functions.add(Objective.Lagrange.TRACK_MARKERS, weight=1, target=markers_ref)
-    # objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=1e-7, target=tau_init)
-    # objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=1e-7)
-    objective_functions.add(Objective.Lagrange.TRACK_STATE, weight=1e-5, target=state_ref)
-    objective_functions.add(Objective.Lagrange.MINIMIZE_STATE, weight=1e-5, index=range(6, n_q))
+    objective_functions.add(ObjectiveFcn.Lagrange.TRACK_MARKERS, weight=1, target=markers_ref)
+    # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_TORQUE, weight=1e-7, target=tau_init)
+    # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_TORQUE, weight=1e-7)
+    objective_functions.add(ObjectiveFcn.Lagrange.TRACK_STATE, weight=1e-5, target=state_ref)
+    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, weight=1e-5, index=range(6, n_q))
     control_weight_segments = [0   , 0   , 0   ,  # pelvis trans
                                0   , 0   , 0   ,  # pelvis rot
                                1e-7, 1e-7, 1e-6,  # thorax
@@ -105,19 +106,19 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, markers_ref, q
                                1e-4, 1e-3,        # left foot
                                ]
     for idx in range(n_tau):
-      objective_functions.add(Objective.Lagrange.TRACK_TORQUE, weight=control_weight_segments[idx], target=tau_init[idx:idx+1, :], index=idx)
-      objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=control_weight_segments[idx], index=idx)
+      objective_functions.add(ObjectiveFcn.Lagrange.TRACK_TORQUE, weight=control_weight_segments[idx], target=tau_init[idx:idx+1, :], index=idx)
+      objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_TORQUE, weight=control_weight_segments[idx], index=idx)
 
     # Dynamics
-    dynamics = DynamicsTypeList()
-    dynamics.add(DynamicsType.TORQUE_DRIVEN)
+    dynamics = DynamicsList()
+    dynamics.add(DynamicsFcn.TORQUE_DRIVEN)
 
     # Constraints
     # constraints = ConstraintList()
 
     # Path constraint
     X_bounds = BoundsList()
-    X_bounds.add(Bounds(min_bound=xmin, max_bound=xmax))
+    X_bounds.add(min_bound=xmin, max_bound=xmax)
 
     # Initial guess
     X_init = InitialGuessList()
@@ -127,7 +128,7 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, markers_ref, q
 
     # Define control path constraint
     U_bounds = BoundsList()
-    U_bounds.add(Bounds(min_bound=[torque_min] * n_tau, max_bound=[torque_max] * n_tau))
+    U_bounds.add(min_bound=[torque_min] * n_tau, max_bound=[torque_max] * n_tau)
     U_bounds[0].min[:6, :] = 0
     U_bounds[0].max[:6, :] = 0
 
@@ -146,7 +147,8 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, markers_ref, q
         U_bounds,
         objective_functions,
         # constraints,
-        nb_integration_steps=4,
+        ode_solver=OdeSolver.RK8,
+        nb_integration_steps=2,
         nb_threads=4,
         use_SX=use_ACADOS,
     )
@@ -154,13 +156,13 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, markers_ref, q
 
 if __name__ == "__main__":
     start = time.time()
-    # subject = 'DoCi'
+    subject = 'DoCi'
     # subject = 'JeCh'
     # subject = 'BeLa'
     # subject = 'GuSe'
-    subject = 'SaMi'
+    # subject = 'SaMi'
     number_shooting_points = 100
-    trial = '821_seul_3'
+    trial = '44_1'
     print('Subject: ', subject, ', Trial: ', trial)
 
     use_ACADOS = False
@@ -195,7 +197,7 @@ if __name__ == "__main__":
     # ocp_optimal_gravity, sol_optimal_gravity = OptimalControlProgram.load(optimal_gravity_filename)
     # states_optimal_gravity, controls_optimal_gravity, params_optimal_gravity = Data.get_data(ocp_optimal_gravity, sol_optimal_gravity, get_parameters=True)
 
-    filename = '/home/andre/bioptim/examples/optimal_gravity_ocp/Solutions/' + subject + '/' + os.path.splitext(c3d_name)[0] + '_optimal_gravity_N' + str(adjusted_number_shooting_points) + '_mixed_EKF' + ".pkl"
+    filename = '/home/andre/bioptim/examples/optimal_gravity_ocp/Solutions/' + subject + '/' + os.path.splitext(c3d_name)[0] + '_optimal_gravity_N' + str(adjusted_number_shooting_points) + '_mixed_EKF_RK8' + ".pkl"
     filename_full = '/home/andre/bioptim/examples/optimal_gravity_ocp/Solutions/' + subject + '/' + os.path.splitext(c3d_name)[0] + '_optimal_gravity_N' + str(frames.stop - frames.start - 1) + '_mixed_EKF' + ".pkl"
     filename_acados = '/home/andre/bioptim/examples/optimal_gravity_ocp/Solutions/' + subject + '/' + os.path.splitext(c3d_name)[0] + '_optimal_gravity_N' + str(adjusted_number_shooting_points) + '_mixed_EKF_ACADOS' + ".pkl"
     filename_acados_full = '/home/andre/bioptim/examples/optimal_gravity_ocp/Solutions/' + subject + '/' + os.path.splitext(c3d_name)[0] + '_optimal_gravity_N' + str(frames.stop - frames.start - 1) + '_mixed_EKF_ACADOS' + ".pkl"
@@ -282,7 +284,7 @@ if __name__ == "__main__":
     if use_ACADOS:
         save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_ACADOS'
     else:
-        save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points)
+        save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_RK8'
     ocp.save(sol, save_name + ".bo")
 
     get_gravity = Function('print_gravity', [], [biorbd_model.getGravity().to_mx()], [], ['gravity'])
