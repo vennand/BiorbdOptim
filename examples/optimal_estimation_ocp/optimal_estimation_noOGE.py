@@ -70,7 +70,7 @@ def inverse_dynamics(biorbd_model, q_ref, qd_ref, qdd_ref):
 #     return RotX.dot(RotY.dot(RotZ))
 
 
-def prepare_ocp(biorbd_model, final_time, number_shooting_points, markers_ref, q_init, qdot_init, tau_init, xmin, xmax):
+def prepare_ocp(biorbd_model, final_time, number_shooting_points, markers_ref, q_init, qdot_init, tau_init, xmin, xmax, min_torque_diff=False):
     # --- Options --- #
     torque_min, torque_max = -300, 300
     n_q = biorbd_model.nbQ()
@@ -107,6 +107,8 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, markers_ref, q
     for idx in range(n_tau):
       objective_functions.add(Objective.Lagrange.TRACK_TORQUE, weight=control_weight_segments[idx], target=tau_init, controls_idx=idx)
       objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=control_weight_segments[idx], controls_idx=idx)
+    if min_torque_diff:
+        objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE_DERIVATIVE, weight=1e-5)
 
     # Dynamics
     dynamics = DynamicsTypeList()
@@ -161,6 +163,16 @@ if __name__ == "__main__":
     number_shooting_points = 100
     trial = '821_contact_2'
     print('Subject: ', subject, ', Trial: ', trial)
+
+    trial_needing_min_torque_diff = {'DoCi': ['44_1'],
+                                     'BeLa': ['44_2'],
+                                     'SaMi': ['821_822_2',
+                                              '821_contact_2',
+                                              '821_seul_3', '821_seul_4']}
+    min_torque_diff = False
+    if subject in trial_needing_min_torque_diff.keys():
+        if trial in trial_needing_min_torque_diff[subject]:
+            min_torque_diff = True
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
     model_path = data_path + 'Model/'
@@ -229,7 +241,7 @@ if __name__ == "__main__":
     ocp = prepare_ocp(
         biorbd_model=biorbd_model, final_time=duration, number_shooting_points=adjusted_number_shooting_points,
         markers_ref=markers_rotated, q_init=q_ref, qdot_init=qdot_ref, tau_init=tau_ref,
-        xmin=xmin, xmax=xmax,
+        xmin=xmin, xmax=xmax, min_torque_diff=min_torque_diff,
     )
 
     # --- Solve the program --- #

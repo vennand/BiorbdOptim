@@ -57,13 +57,13 @@ def states_to_markers(biorbd_model, ocp, states):
 
 
 if __name__ == "__main__":
-    subject = 'DoCi'
-    # subject = 'JeCh'
+    # subject = 'DoCi'
+    subject = 'JeCh'
     # subject = 'BeLa'
     # subject = 'GuSe'
     # subject = 'SaMi'
     number_shooting_points = 100
-    trial = '822'
+    trial = '833_2'
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
     model_path = data_path + 'Model/'
@@ -95,10 +95,7 @@ if __name__ == "__main__":
     tau = MX.sym("Tau", biorbd_model.nbQddot(), 1)
 
     id = biorbd.to_casadi_func("id", biorbd_model.InverseDynamics, q, qdot, qddot)
-    am = biorbd.to_casadi_func("am", biorbd_model.CalcAngularMomentum, q, qdot, qddot, True)
     fd = biorbd.to_casadi_func("fd", biorbd_model.ForwardDynamics, q, qdot, tau)
-    mcm = biorbd.to_casadi_func("fd", biorbd_model.mass)
-    vcm = biorbd.to_casadi_func("fd", biorbd_model.CoMdot, q, qdot)
 
     # --- Load --- #
     load_path = '/home/andre/BiorbdOptim/examples/optimal_estimation_ocp/Solutions/'
@@ -154,6 +151,9 @@ if __name__ == "__main__":
     markers_error_EKF_matlab = np.sqrt(np.sum((markers_kalman - markers_mocap)**2, axis=0))*1000
     markers_error_EKF_biorbd = np.sqrt(np.sum((markers_kalman_biorbd - markers_mocap)**2, axis=0))*1000
 
+    # --- Missing markers --- #
+    missing_markers_per_node = np.count_nonzero(np.isnan(markers_mocap[0, :, :]), axis=0) / markers_mocap.shape[1] * 100
+
     # --- By segments --- #
     segments = dict()
     for segment_idx in range(biorbd_model.nbSegment()):
@@ -162,12 +162,79 @@ if __name__ == "__main__":
     for marker_idx in range(biorbd_model.nbMarkers()):
         segments[biorbd_model.marker(marker_idx).parentId()]['markers_idx'].append(marker_idx)
 
+    segment_names = []
+    segment_marker_error_OE = []
+    segment_marker_error_OGE = []
+    segment_marker_error_EKF_matlab = []
+    segment_marker_error_EKF_biorbd = []
+    segment_marker_error_OE_per_node = []
+    segment_marker_error_OGE_per_node = []
+    segment_marker_error_EKF_matlab_per_node = []
+    segment_marker_error_EKF_biorbd_per_node = []
+    segment_missing_markers = []
+    segment_missing_markers_per_node = []
     for segment in segments.values():
         segment['markers_error_OE'] = np.nanmean([markers_error_OE[marker_idx, :] for marker_idx in segment['markers_idx']])
         segment['markers_error_OGE'] = np.nanmean([markers_error_OGE[marker_idx, :] for marker_idx in segment['markers_idx']])
         segment['markers_error_EKF_matlab'] = np.nanmean([markers_error_EKF_matlab[marker_idx, :] for marker_idx in segment['markers_idx']])
         segment['markers_error_EKF_biorbd'] = np.nanmean([markers_error_EKF_biorbd[marker_idx, :] for marker_idx in segment['markers_idx']])
 
+        segment_names.append(segment['name'])
+        segment_marker_error_OE.append(segment['markers_error_OE'])
+        segment_marker_error_OGE.append(segment['markers_error_OGE'])
+        segment_marker_error_EKF_matlab.append(segment['markers_error_EKF_matlab'])
+        segment_marker_error_EKF_biorbd.append(segment['markers_error_EKF_biorbd'])
+
+        segment_marker_error_OE_per_node.append(np.nanmean([markers_error_OE[marker_idx, :] for marker_idx in segment['markers_idx']], axis=0))
+        segment_marker_error_OGE_per_node.append(np.nanmean([markers_error_OGE[marker_idx, :] for marker_idx in segment['markers_idx']], axis=0))
+        segment_marker_error_EKF_matlab_per_node.append(np.nanmean([markers_error_EKF_matlab[marker_idx, :] for marker_idx in segment['markers_idx']], axis=0))
+        segment_marker_error_EKF_biorbd_per_node.append(np.nanmean([markers_error_EKF_biorbd[marker_idx, :] for marker_idx in segment['markers_idx']], axis=0))
+
+        segment_missing_markers.append(np.count_nonzero(np.isnan([markers_mocap[0, marker_idx, :] for marker_idx in segment['markers_idx']])) / len(segment['markers_idx']) / markers_mocap.shape[2] * 100)
+        segment_missing_markers_per_node.append(np.count_nonzero(np.isnan([markers_mocap[0, marker_idx, :] for marker_idx in segment['markers_idx']]), axis=0) / len(segment['markers_idx']) * 100)
+
+    print('Segment names')
+    print(*segment_names, sep=',')
+    print('Marker error OE, per segment')
+    print(*segment_marker_error_OE, sep=',')
+    print('Marker error OGE, per segment')
+    print(*segment_marker_error_OGE, sep=',')
+    print('Marker error EKF matlab, per segment')
+    print(*segment_marker_error_EKF_matlab, sep=',')
+    print('Marker error EKF biorbd, per segment')
+    print(*segment_marker_error_EKF_biorbd, sep=',')
+
+    print('Missing markers, per segment')
+    print(*segment_missing_markers, sep=',')
+
+    print('Marker error OE, per node')
+    print(*np.nanmean(markers_error_OE, axis=0), sep=',')
+    print('Marker error OGE, per node')
+    print(*np.nanmean(markers_error_OGE, axis=0), sep=',')
+    print('Marker error EKF matlab, per node')
+    print(*np.nanmean(markers_error_EKF_matlab, axis=0), sep=',')
+    print('Marker error EKF biorbd, per node')
+    print(*np.nanmean(markers_error_EKF_biorbd, axis=0), sep=',')
+
+    print('Missing markers, per node')
+    print(*missing_markers_per_node, sep=',')
+
+    print('Marker error OE, per segment, per node')
+    for segment in segment_marker_error_OE_per_node:
+        print(*segment, sep=',')
+    print('Marker error OGE, per segment, per node')
+    for segment in segment_marker_error_OGE_per_node:
+        print(*segment, sep=',')
+    print('Marker error EKF matlab, per segment, per node')
+    for segment in segment_marker_error_EKF_matlab_per_node:
+        print(*segment, sep=',')
+    print('Marker error EKF biorbd, per segment, per node')
+    for segment in segment_marker_error_EKF_biorbd_per_node:
+        print(*segment, sep=',')
+
+    print('Missing markers, per segment, per node')
+    for segment in segment_missing_markers_per_node:
+        print(*segment, sep=',')
 
     # --- Stats --- #
     #OE
@@ -186,12 +253,12 @@ if __name__ == "__main__":
     average_distance_between_markers_kalman_biorbd = np.nanmean(markers_error_EKF_biorbd)
     sd_distance_between_markers_kalman_biorbd = np.nanstd(markers_error_EKF_biorbd)
 
-    print('Number of shooting points: ', adjusted_number_shooting_points)
-    print('Average marker error')
-    print('Kalman: ', average_distance_between_markers_kalman, u"\u00B1", sd_distance_between_markers_kalman)
-    print('Kalman biorbd: ', average_distance_between_markers_kalman_biorbd, u"\u00B1", sd_distance_between_markers_kalman_biorbd)
-    print('Optimal gravity: ', average_distance_between_markers_optimal_gravity, u"\u00B1", sd_distance_between_markers_optimal_gravity)
-    print('Estimation: ', average_distance_between_markers, u"\u00B1", sd_distance_between_markers)
+    # print('Number of shooting points: ', adjusted_number_shooting_points)
+    # print('Average marker error')
+    # print('Kalman: ', average_distance_between_markers_kalman, u"\u00B1", sd_distance_between_markers_kalman)
+    # print('Kalman biorbd: ', average_distance_between_markers_kalman_biorbd, u"\u00B1", sd_distance_between_markers_kalman_biorbd)
+    # print('Optimal gravity: ', average_distance_between_markers_optimal_gravity, u"\u00B1", sd_distance_between_markers_optimal_gravity)
+    # print('Estimation: ', average_distance_between_markers, u"\u00B1", sd_distance_between_markers)
 
     # --- Plots --- #
     dofs = [range(0, 6), range(6, 9), range(9, 12),
