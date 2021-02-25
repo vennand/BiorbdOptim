@@ -6,12 +6,13 @@ import pickle
 from scipy.io import loadmat
 import os
 import sys
+from pathlib import Path
 from matplotlib import pyplot
 from matplotlib import gridspec
 from matplotlib.lines import Line2D
 from matplotlib.offsetbox import AnchoredText
 from mpl_toolkits.mplot3d import Axes3D
-sys.path.insert(1, '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp')
+sys.path.insert(1, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'optimal_gravity_ocp'))
 from load_data_filename import load_data_filename
 from adjust_number_shooting_points import adjust_number_shooting_points
 from reorder_markers import reorder_markers
