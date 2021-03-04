@@ -170,4 +170,4 @@ def adjust_Kalman(biorbd_model, subject, trial, q_ref_matlab, qdot_ref_matlab, q
             qdot_ref[dof, :] = 0
             qddot_ref[dof, :] = 0
 
-    return q_ref, qdot_ref, qddot_ref
+    return q_ref, qdot_ref, qddot_ref, (states_idx_range_list, broken_dofs)

@@ -2,11 +2,12 @@ import biorbd
 import numpy as np
 import ezc3d
 from scipy.io import loadmat
-import pickle
 import time
 from casadi import MX, Function
+import pickle
 import os
-import warnings
+import sys
+sys.path.insert(1, '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp')
 from load_data_filename import load_data_filename
 from x_bounds import x_bounds
 from adjust_number_shooting_points import adjust_number_shooting_points
@@ -52,8 +53,26 @@ def inverse_dynamics(biorbd_model, q_ref, qd_ref, qdd_ref):
     return id(q_ref, qd_ref, qdd_ref)[:, :-1]
 
 
+# def refential_matrix(subject):
+#     if subject == 'DoCi':
+#         angleX = 0.0480
+#         angleY = -0.0657
+#         angleZ = 1.5720
+#     elif subject == 'JeCh':
+#         angleX = 0.0102;
+#         angleY = 0.1869;
+#         angleZ = -1.6201;
+#
+#     RotX = np.array(((1, 0, 0), (0, np.cos(angleX), -np.sin(angleX)), (0, np.sin(angleX), np.cos(angleX))))
+#
+#     RotY = np.array(((np.cos(angleY), 0, np.sin(angleY)), (0, 1, 0),(-np.sin(angleY), 0, np.cos(angleY))))
+#
+#     RotZ = np.array(((np.cos(angleZ), -np.sin(angleZ), 0), (np.sin(angleZ), np.cos(angleZ), 0), (0, 0, 1)))
+#
+#     return RotX.dot(RotY.dot(RotZ))
 
-def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_ref, tau_init, xmin, xmax, min_g, max_g, markers_ref=None, markers_idx_ref=None, states_idx_ref=None, min_torque_diff=False, broken_dofs=None):
+
+def prepare_ocp(biorbd_model, final_time, number_shooting_points, markers_ref, q_init, qdot_init, tau_init, xmin, xmax, min_g, max_g, min_torque_diff=False):
     # --- Options --- #
     torque_min, torque_max = -300, 300
     n_q = biorbd_model.nbQ()
@@ -61,27 +80,35 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
     n_tau = biorbd_model.nbGeneralizedTorque()
 
     # Add objective functions
-    state_ref = np.concatenate((q_ref, qdot_ref))
+    state_ref = np.concatenate((q_init, qdot_init))
     objective_functions = ObjectiveList()
-    # if markers_ref is not None:
-    #     objective_functions.add(Objective.Lagrange.TRACK_MARKERS, weight=10, target=markers_ref, markers_idx=range(36, 39))
-    #     objective_functions.add(Objective.Lagrange.TRACK_MARKERS, weight=10, target=markers_ref, markers_idx=range(58, 61))
-    #     objective_functions.add(Objective.Lagrange.TRACK_MARKERS, weight=10, target=markers_ref, markers_idx=range(75, 78))
-    #     objective_functions.add(Objective.Lagrange.TRACK_MARKERS, weight=10, target=markers_ref, markers_idx=range(92, 95))
-    if markers_idx_ref and markers_ref is not None:
-        for markers_idx_range in markers_idx_ref:
-            objective_functions.add(Objective.Lagrange.TRACK_MARKERS, weight=1, target=markers_ref,
-                                    markers_idx=markers_idx_range)
-    if states_idx_ref is not None:
-        for states_idx_range in states_idx_ref:
-            objective_functions.add(Objective.Lagrange.TRACK_STATE, weight=1, target=state_ref,
-                                    states_idx=states_idx_range)
-    else:
-        objective_functions.add(Objective.Lagrange.TRACK_STATE, weight=1, target=state_ref,
-             states_idx=range(n_q))
-    # objective_functions.add(Objective.Lagrange.TRACK_STATE, weight=0.01, target=state_ref,
-    #      states_idx=range(n_q, n_q + n_qdot))
-    objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=1e-7)
+    objective_functions.add(Objective.Lagrange.TRACK_MARKERS, weight=1, target=markers_ref)
+    # objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=1e-7, target=tau_init)
+    # objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=1e-7)
+    objective_functions.add(Objective.Lagrange.MINIMIZE_STATE, weight=1e-5, target=state_ref)
+    objective_functions.add(Objective.Lagrange.MINIMIZE_STATE, weight=1e-5, states_idx=range(6, n_q))
+    control_weight_segments = [0   , 0   , 0   ,  # pelvis trans
+                               0   , 0   , 0   ,  # pelvis rot
+                               1e-7, 1e-7, 1e-6,  # thorax
+                               1e-5, 1e-5, 1e-4,  # head
+                               1e-5, 1e-4,        # right shoulder
+                               1e-5, 1e-5, 1e-4,  # right arm
+                               1e-4, 1e-3,        # right forearm
+                               1e-4, 1e-3,        # right hand
+                               1e-5, 1e-4,        # left shoulder
+                               1e-5, 1e-5, 1e-4,  # left arm
+                               1e-4, 1e-3,        # left forearm
+                               1e-4, 1e-3,        # left hand
+                               1e-7, 1e-7, 1e-6,  # right thigh
+                               1e-6,              # right leg
+                               1e-4, 1e-3,        # right foot
+                               1e-7, 1e-7, 1e-6,  # left thigh
+                               1e-6,              # left leg
+                               1e-4, 1e-3,        # left foot
+                               ]
+    for idx in range(n_tau):
+      objective_functions.add(Objective.Lagrange.TRACK_TORQUE, weight=control_weight_segments[idx], target=tau_init, controls_idx=idx)
+      objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=control_weight_segments[idx], controls_idx=idx)
     if min_torque_diff:
         objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE_DERIVATIVE, weight=1e-5)
 
@@ -95,19 +122,12 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
     # Path constraint
     X_bounds = BoundsList()
     X_bounds.add(Bounds(min_bound=xmin, max_bound=xmax))
-    # if markers_idx_ref is None and broken_dofs is not None:
-    #     for dof in broken_dofs:
-    #         X_bounds[0].min[dof, :] = 0
-    #         X_bounds[0].max[dof, :] = 0
-    # X_bounds[0].min[40:42, :] = 0
-    # X_bounds[0].max[40:42, :] = 0
-
 
     # Initial guess
     X_init = InitialConditionsList()
-    q_ref = np.zeros(q_ref.shape)
-    qdot_ref = np.zeros(qdot_ref.shape)
-    X_init.add(np.concatenate([q_ref, qdot_ref]), interpolation=InterpolationType.EACH_FRAME)
+    # q_init = np.zeros(q_init.shape)
+    # qdot_init = np.zeros(qdot_init.shape)
+    X_init.add(np.concatenate([q_init, qdot_init]), interpolation=InterpolationType.EACH_FRAME)
 
     # Define control path constraint
     U_bounds = BoundsList()
@@ -116,7 +136,7 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
     U_bounds[0].max[:6, :] = 0
 
     U_init = InitialConditionsList()
-    tau_init = np.zeros(tau_init.shape)
+    # tau_init = np.zeros(tau_init.shape)
     U_init.add(tau_init, interpolation=InterpolationType.EACH_FRAME)
 
     # Define the parameter to optimize
@@ -152,18 +172,17 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
 
 if __name__ == "__main__":
     start = time.time()
-    # subject = 'DoCi'
-    subject = 'JeCh'
+    subject = 'DoCi'
+    # subject = 'JeCh'
     # subject = 'BeLa'
     # subject = 'GuSe'
     # subject = 'SaMi'
-    number_shooting_points = 1000
-    trial = '833_5'
+    number_shooting_points = 100
+    trial = '44_3'
     print('Subject: ', subject, ', Trial: ', trial)
 
     trial_needing_min_torque_diff = {'DoCi': ['44_1'],
                                      'BeLa': ['44_2'],
-                                     'JeCh': ['833_5'],
                                      'SaMi': ['821_822_2',
                                               '821_contact_2',
                                               '821_seul_3', '821_seul_4']}
@@ -211,7 +230,17 @@ if __name__ == "__main__":
     frequency = c3d['header']['points']['frame_rate']
     duration = len(frames) / frequency
 
+    optimal_gravity_filename = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/' + subject + '/' + os.path.splitext(c3d_name)[0] + '_optimal_gravity_N' + str(adjusted_number_shooting_points) + '_mixed_EKF' + ".bo"
+    ocp_optimal_gravity, sol_optimal_gravity = OptimalControlProgram.load(optimal_gravity_filename)
+    states_optimal_gravity, controls_optimal_gravity = Data.get_data(ocp_optimal_gravity, sol_optimal_gravity)
 
+    q_ref = states_optimal_gravity['q']
+    qdot_ref = states_optimal_gravity['q_dot']
+    tau_ref = controls_optimal_gravity['tau'][:, :-1]
+
+    q_ref = np.zeros(q_ref.shape)
+    qdot_ref = np.zeros(qdot_ref.shape)
+    tau_ref = np.zeros(tau_ref.shape)
     # --- Calculate Kalman controls --- #
     q_ref_matlab = q_ref_matlab[:, frames.start:frames.stop:step_size]
     qdot_ref_matlab = qdot_ref_matlab[:, frames.start:frames.stop:step_size]
@@ -225,44 +254,34 @@ if __name__ == "__main__":
                                                q_ref_matlab, qdot_ref_matlab, qddot_ref_matlab,
                                                q_ref_biorbd, qdot_ref_biorbd, qddot_ref_biorbd)
 
-    tau_ref = inverse_dynamics(biorbd_model, q_ref, qdot_ref, qddot_ref)
-
-    # load_name = '/home/andre/BiorbdOptim/examples/optimal_estimation_no_constraint_ocp/Solutions/DoCi/Do_822_contact_2.bo'
-    # load_name = '/home/andre/BiorbdOptim/examples/optimal_estimation_no_constraint_ocp/Solutions/DoCi/Do_822_contact_2_not_rotated.bo'
-    # ocp_not_kalman, sol_not_kalman = OptimalControlProgram.load(load_name)
-    # states_not_kalman, controls_not_kalman = Data.get_data(ocp_not_kalman, sol_not_kalman)
-    # q_ref = states_not_kalman['q'][:, frames.start:frames.stop:step_size]
-    # qdot_ref = states_not_kalman['q_dot'][:, frames.start:frames.stop:step_size]
-    # tau_ref = controls_not_kalman['tau'][:, frames.start:frames.stop:step_size][:, :-1]
+    tau_ref = inverse_dynamics(biorbd_model, q_ref, qdot_ref, qddot_ref).full()
 
     xmin, xmax = x_bounds(biorbd_model)
 
-    markers_reordered, markers_idx_ref = reorder_markers(biorbd_model, c3d, frames, step_size, broken_dofs)
+    markers_reordered, _ = reorder_markers(biorbd_model, c3d, frames, step_size)
 
-    # markers_rotated = np.zeros(markers_reordered.shape)
+    # markers_rotated = np.zeros(markers.shape)
     # for frame in range(markers.shape[2]):
     #     markers_rotated[..., frame] = refential_matrix(subject).T.dot(markers_reordered[..., frame])
     markers_rotated = markers_reordered
 
     ocp = prepare_ocp(
         biorbd_model=biorbd_model, final_time=duration, number_shooting_points=adjusted_number_shooting_points,
-        q_ref=q_ref, qdot_ref=qdot_ref, tau_init=tau_ref, markers_ref=markers_rotated, markers_idx_ref=markers_idx_ref,
-        states_idx_ref=states_idx_range_list, broken_dofs=broken_dofs, min_torque_diff=min_torque_diff,
-        xmin=xmin, xmax=xmax,
+        markers_ref=markers_rotated, q_init=q_ref, qdot_init=qdot_ref, tau_init=tau_ref,
+        xmin=xmin, xmax=xmax, min_torque_diff=min_torque_diff,
         min_g=[0, -np.pi/16], max_g=[2*np.pi, np.pi/16],
     )
 
     # --- Solve the program --- #
-    options = {"max_iter": 3000, "tol": 1e-6, "constr_viol_tol": 1e-3, "linear_solver": "ma57"}
+    options = {"max_iter": 3000, "tol": 1e-4, "constr_viol_tol": 1e-2, "linear_solver": "ma57"}
     sol = ocp.solve(solver=Solver.IPOPT, solver_options=options, show_online_optim=False)
 
     # --- Get the results --- #
     states, controls, params = Data.get_data(ocp, sol, get_parameters=True)
 
     # --- Save --- #
-    save_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
-    # save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF' + ".bo"
-    save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF'
+    save_path = 'Solutions/'
+    save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_noOGE'
     ocp.save(sol, save_name + ".bo")
 
     biorbd_model = biorbd.Model(model_path + model_name)
@@ -271,24 +290,20 @@ if __name__ == "__main__":
     print_gravity = Function('print_gravity', [], [biorbd_model.getGravity().to_mx()], [], ['gravity'])
     gravity = print_gravity()['gravity'].full().squeeze()
 
-    save_variables_name = save_name + ".pkl"
-    with open(save_variables_name, 'wb') as handle:
-        pickle.dump({'states': states, 'controls': controls, 'params': params, 'gravity': gravity},
-                    handle, protocol=3)
-
-    # --- Load --- #
-    # ocp, sol = OptimalControlProgram.load(save_name)
-
     angle = params["gravity_angle"].squeeze()/np.pi*180
     print('Number of shooting points: ', adjusted_number_shooting_points)
     print('Gravity rotation: ', angle)
     print('Gravity: ', gravity)
 
-    if broken_dofs is not None:
-        print('Abnormal Kalman states at DoFs: ', broken_dofs)
+    save_variables_name = save_name + ".pkl"
+    with open(save_variables_name, 'wb') as handle:
+        pickle.dump({'mocap': markers_rotated, 'duration': duration, 'frames': frames, 'step_size': step_size,
+                     'states': states, 'controls': controls, 'gravity': gravity, 'gravity_angle': angle},
+                    handle, protocol=3)
 
     stop = time.time()
-    print('Runtime: ', stop - start)
+    print('Number of shooting points: ', adjusted_number_shooting_points)
+    print(stop - start)
 
     # --- Show results --- #
     # ShowResult(ocp, sol).animate(nb_frames=adjusted_number_shooting_points)

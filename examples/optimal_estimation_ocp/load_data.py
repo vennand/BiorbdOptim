@@ -428,12 +428,18 @@ if __name__ == "__main__":
 
     axs_error[-1].set_xlabel("Aerial time")
 
+    pyplot.margins(0, 0)
+    fig_momentum.gca().xaxis.set_major_locator(pyplot.NullLocator())
+    fig_momentum.gca().yaxis.set_major_locator(pyplot.NullLocator())
     save_path = 'Solutions/'
     save_name = save_path + subject + '/Plots/' + os.path.splitext(c3d_name)[0] + "_momentum" + '.png'
-    fig_momentum.savefig(save_name)
+    fig_momentum.savefig(save_name, bbox_inches='tight', pad_inches=0)
 
+    pyplot.margins(0, 0)
+    fig_error.gca().xaxis.set_major_locator(pyplot.NullLocator())
+    fig_error.gca().yaxis.set_major_locator(pyplot.NullLocator())
     save_name = save_path + subject + '/Plots/' + os.path.splitext(c3d_name)[0] + "_error" + '.png'
-    fig_error.savefig(save_name)
+    fig_error.savefig(save_name, bbox_inches='tight', pad_inches=0)
 
     dofs = [range(0, 6), range(6, 9), range(9, 12),
             range(12, 14), range(14, 17), range(17, 19), range(19, 21),
