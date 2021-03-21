@@ -57,13 +57,13 @@ def states_to_markers(biorbd_model, ocp, states):
 
 
 if __name__ == "__main__":
-    subject = 'DoCi'
+    # subject = 'DoCi'
     # subject = 'JeCh'
     # subject = 'BeLa'
     # subject = 'GuSe'
-    # subject = 'SaMi'
+    subject = 'SaMi'
     number_shooting_points = 100
-    trial = '44_3'
+    trial = '822_contact_1'
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
     model_path = data_path + 'Model/'

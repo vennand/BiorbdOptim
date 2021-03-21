@@ -37,9 +37,9 @@ def rotating_gravity(biorbd_model, value):
 # subject = 'DoCi'
 # subject = 'JeCh'
 # subject = 'BeLa'
-subject = 'GuSe'
-# subject = 'SaMi'
-trial = '44_3'
+# subject = 'GuSe'
+subject = 'SaMi'
+trial = '821_seul_5'
 number_shooting_points = 100
 
 data_path = '/home/andre/Optimisation/data/' + subject + '/'
