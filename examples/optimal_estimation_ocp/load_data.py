@@ -17,6 +17,7 @@ from load_data_filename import load_data_filename
 from adjust_number_shooting_points import adjust_number_shooting_points
 from reorder_markers import reorder_markers
 from adjust_Kalman import correct_Kalman, check_Kalman, shift_by_2pi
+from meanfreq import meanfreq
 
 from biorbd_optim import (
     OptimalControlProgram,
@@ -105,6 +106,8 @@ if __name__ == "__main__":
 
     # --- Adjust number of shooting points --- #
     adjusted_number_shooting_points, step_size = adjust_number_shooting_points(number_shooting_points, frames)
+    print('Adjusted number of shooting points: ', adjusted_number_shooting_points)
+    print('Node step size: ', step_size)
 
     frequency = c3d['header']['points']['frame_rate']
     duration = len(frames) / frequency
@@ -315,6 +318,7 @@ if __name__ == "__main__":
     # print(rank)
     # print(rank.count(biorbd_model.nbQ()) / adjusted_number_shooting_points * 100)
 
+
     # --- Plots --- #
 
     fig_momentum, axs_momentum = pyplot.subplots(nrows=2, ncols=1, figsize=(20, 10), gridspec_kw={'height_ratios': [1, 1]})
@@ -462,6 +466,7 @@ if __name__ == "__main__":
     # fig_model, axs_model = pyplot.subplots(nrows=8, ncols=6, figsize=(20, 10))
     fig_model_Q = pyplot.figure(figsize=(20, 10))
     fig_model_U = pyplot.figure(figsize=(20, 10))
+    fig_model_fft = pyplot.figure(figsize=(20, 10))
     fig_model_error_missing = pyplot.figure(figsize=(20, 10))
     gs_model = gridspec.GridSpec(8, 6)
     for idx_dof, dof in enumerate(dofs):
@@ -484,6 +489,7 @@ if __name__ == "__main__":
         # # fig = pyplot.figure()
         # # pyplot.plot(qddot_ref_matlab[dof, :].T, color='blue')
         # # pyplot.plot(qddot_ref_biorbd[dof, :].T, color='red')
+        # #
         #
         # fig.suptitle(dofs_name[idx_dof])
         # lm_kalman = Line2D([0, 1], [0, 1], linestyle='-', color='blue')
@@ -571,6 +577,68 @@ if __name__ == "__main__":
         ax_model_U.spines['top'].set_visible(False)
         ax_model_U.spines['bottom'].set_visible(False)
 
+        gs_model_subplot = gridspec.GridSpecFromSubplotSpec(2, 3, subplot_spec=gs_model[fig_model_dof[idx_dof][0], fig_model_dof[idx_dof][1]:fig_model_dof[idx_dof][1]+2], height_ratios=[1, 1])
+
+        ax_model_box = fig_model_fft.add_subplot(gs_model[fig_model_dof[idx_dof][0], fig_model_dof[idx_dof][1]:fig_model_dof[idx_dof][1] + 2])
+        ax_model_box.tick_params(axis='both', which='both', bottom=0, left=0, labelbottom=0, labelleft=0)
+        ax_model_box.patch.set_alpha(0.3)
+
+        ax_model_fft_EKF_controls = fig_model_fft.add_subplot(gs_model_subplot[0, 0])
+        ax_model_fft_EKF_controls.plot(controls_kalman_biorbd['tau'][dof, :].T, color='blue')
+        ax_model_fft_EKF_controls.tick_params(axis="x", direction='in', which='both', bottom=False, top=False, labelbottom=False)
+        ax_model_fft_EKF_controls.tick_params(axis="y", direction='in', which='both', right=False, left=False, labelleft=False)
+        ax_model_fft_EKF_controls.spines['right'].set_visible(False)
+        # ax_model_fft_EKF_controls.spines['left'].set_visible(False)
+        # ax_model_fft_EKF_controls.spines['top'].set_visible(False)
+        # ax_model_fft_EKF_controls.spines['bottom'].set_visible(False)
+
+        ax_model_fft_OGE_controls = fig_model_fft.add_subplot(gs_model_subplot[0, 1])
+        ax_model_fft_OGE_controls.plot(controls_optimal_gravity['tau'][dof, :].T, color='red')
+        ax_model_fft_OGE_controls.tick_params(axis="x", direction='in', which='both', bottom=False, top=False, labelbottom=False)
+        ax_model_fft_OGE_controls.tick_params(axis="y", direction='in', which='both', right=False, left=False, labelleft=False)
+        ax_model_fft_OGE_controls.spines['right'].set_visible(False)
+        # ax_model_fft_OGE_controls.spines['left'].set_visible(False)
+        # ax_model_fft_OGE_controls.spines['top'].set_visible(False)
+        # ax_model_fft_OGE_controls.spines['bottom'].set_visible(False)
+
+        ax_model_fft_OE_controls = fig_model_fft.add_subplot(gs_model_subplot[0, 2])
+        ax_model_fft_OE_controls.plot(controls['tau'][dof, :].T, color='green')
+        ax_model_fft_OE_controls.tick_params(axis="x", direction='in', which='both', bottom=False, top=False, labelbottom=False)
+        ax_model_fft_OE_controls.tick_params(axis="y", direction='in', which='both', right=False, left=False, labelleft=False)
+        # ax_model_fft_OE_controls.spines['right'].set_visible(False)
+        # ax_model_fft_OE_controls.spines['left'].set_visible(False)
+        # ax_model_fft_OE_controls.spines['top'].set_visible(False)
+        # ax_model_fft_OE_controls.spines['bottom'].set_visible(False)
+
+        ax_model_fft_EKF_fft = fig_model_fft.add_subplot(gs_model_subplot[1, 0])
+        ax_model_fft_EKF_fft.plot(controls_fft_freq, controls_kalman_biorbd_fft_abs[dof, :].T, color='blue')
+        ax_model_fft_EKF_fft.tick_params(axis="x", direction='in', which='both', bottom=False, top=False, labelbottom=False)
+        ax_model_fft_EKF_fft.tick_params(axis="y", direction='in', which='both', right=False, left=False, labelleft=False)
+        ax_model_fft_EKF_fft.spines['right'].set_visible(False)
+        # ax_model_fft_EKF_fft.spines['left'].set_visible(False)
+        ax_model_fft_EKF_fft.spines['top'].set_visible(False)
+        # ax_model_fft_EKF_fft.spines['bottom'].set_visible(False)
+
+        ax_model_fft_OGE_fft = fig_model_fft.add_subplot(gs_model_subplot[1, 1])
+        ax_model_fft_OGE_fft.plot(controls_fft_freq, controls_optimal_gravity_fft_abs[dof, :].T, color='red')
+        ax_model_fft_OGE_fft.tick_params(axis="x", direction='in', which='both', bottom=False, top=False, labelbottom=False)
+        ax_model_fft_OGE_fft.tick_params(axis="y", direction='in', which='both', right=False, left=False, labelleft=False)
+        ax_model_fft_OGE_fft.spines['right'].set_visible(False)
+        # ax_model_fft_OGE_fft.spines['left'].set_visible(False)
+        ax_model_fft_OGE_fft.spines['top'].set_visible(False)
+        # ax_model_fft_OGE_fft.spines['bottom'].set_visible(False)
+
+        ax_model_fft_OE_fft = fig_model_fft.add_subplot(gs_model_subplot[1, 2])
+        ax_model_fft_OE_fft.plot(controls_fft_freq, controls_fft_abs[dof, :].T, color='green')
+        ax_model_fft_OE_fft.tick_params(axis="x", direction='in', which='both', bottom=False, top=False, labelbottom=False)
+        ax_model_fft_OE_fft.tick_params(axis="y", direction='in', which='both', right=False, left=False, labelleft=False)
+        # ax_model_fft_OE_fft.spines['right'].set_visible(False)
+        # ax_model_fft_OE_fft.spines['left'].set_visible(False)
+        ax_model_fft_OE_fft.spines['top'].set_visible(False)
+        # ax_model_fft_OE_fft.spines['bottom'].set_visible(False)
+
+        ax_model_box.set_title(dofs_name[idx_dof], size=9)
+
         gs_model_subplot = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=gs_model[fig_model_dof[idx_dof][0], fig_model_dof[idx_dof][1]:fig_model_dof[idx_dof][1]+2], height_ratios=[1/6, 1])
 
         ax_model_box = fig_model_error_missing.add_subplot(gs_model[fig_model_dof[idx_dof][0], fig_model_dof[idx_dof][1]:fig_model_dof[idx_dof][1] + 2])
@@ -625,9 +693,11 @@ if __name__ == "__main__":
     lm_OE = Line2D([0, 1], [0, 1], linestyle='-', color='green')
     fig_model_Q.legend([lm_kalman, lm_OGE, lm_OE], ['Kalman', 'OGE', 'OE'])
     fig_model_U.legend([lm_kalman, lm_OGE, lm_OE], ['Kalman', 'OGE', 'OE'])
+    fig_model_fft.legend([lm_kalman, lm_OGE, lm_OE], ['Kalman', 'OGE', 'OE'])
 
     fig_model_Q.subplots_adjust(wspace=0.3, hspace=0.3)
     fig_model_U.subplots_adjust(wspace=0.3, hspace=0.3)
+    fig_model_fft.subplots_adjust(wspace=0.3, hspace=0.3)
     fig_model_error_missing.subplots_adjust(wspace=0.3, hspace=0.3)
 
     cbar = fig_model_error_missing.colorbar(im_model, ax=fig_model_error_missing.get_axes(), shrink=0.95, pad=0.1)
@@ -642,6 +712,10 @@ if __name__ == "__main__":
     fig_model_U.tight_layout
     save_name = save_path + subject + '/Plots/' + os.path.splitext(c3d_name)[0] + '_model_U' + '.png'
     fig_model_U.savefig(save_name)
+
+    fig_model_fft.tight_layout
+    save_name = save_path + subject + '/Plots/' + os.path.splitext(c3d_name)[0] + '_model_fft' + '.png'
+    fig_model_fft.savefig(save_name)
 
     fig_model_error_missing.tight_layout
     save_name = save_path + subject + '/Plots/' + os.path.splitext(c3d_name)[0] + '_model_Error' + '.png'
