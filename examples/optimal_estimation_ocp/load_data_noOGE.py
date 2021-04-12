@@ -58,12 +58,12 @@ def states_to_markers(biorbd_model, ocp, states):
 
 if __name__ == "__main__":
     # subject = 'DoCi'
-    # subject = 'JeCh'
+    subject = 'JeCh'
     # subject = 'BeLa'
     # subject = 'GuSe'
-    subject = 'SaMi'
+    # subject = 'SaMi'
     number_shooting_points = 100
-    trial = '821_contact_2'
+    trial = '833_5'
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
     model_path = data_path + 'Model/'
@@ -237,6 +237,10 @@ if __name__ == "__main__":
     mad_OGE = np.median(np.abs(momentum_OGE - median_OGE[:, np.newaxis]), axis=1)
     mad_EKF = np.median(np.abs(momentum_EKF - median_EKF[:, np.newaxis]), axis=1)
 
+    mean_OE = np.mean(momentum_OE, axis=1)[:, np.newaxis]
+    mean_OGE = np.mean(momentum_OGE, axis=1)[:, np.newaxis]
+    mean_EKF = np.mean(momentum_EKF, axis=1)[:, np.newaxis]
+
     total_mass = mcm()['o0'].full()
     linear_momentum = total_mass * vcm(states['q'], states['q_dot']).full()
     linear_momentum_optimal_gravity = total_mass * vcm(states_optimal_gravity['q'], states_optimal_gravity['q_dot']).full()
@@ -372,6 +376,9 @@ if __name__ == "__main__":
         # pyplot.savefig(save_name)
 
     pyplot.show()
+
+    # print('Angular momentum OE_noOGE: ', mean_OE.squeeze())
+    # print('Linear momentum OE_noOGE: ', slope_lm)
 
     # --- Show results --- #
     # ShowResult(ocp, sol).animate(nb_frames=adjusted_number_shooting_points)

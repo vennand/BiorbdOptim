@@ -78,14 +78,14 @@ def rank_jacobian_marker_state(state, markers_mocap):
 
 
 if __name__ == "__main__":
-    subject = 'DoCi'
-    # subject = 'JeCh'
+    # subject = 'DoCi'
+    subject = 'JeCh'
     # subject = 'BeLa'
     # subject = 'GuSe'
     # subject = 'SaMi'
     number_shooting_points = 100
-    trial = '822'
-    testing_angle = np.array([0, 5])
+    trial = '833_1'
+    testing_angle = np.array([0, 15])
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
     model_path = data_path + 'Model/'
