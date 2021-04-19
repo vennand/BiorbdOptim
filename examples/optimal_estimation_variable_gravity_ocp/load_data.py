@@ -85,7 +85,7 @@ if __name__ == "__main__":
     # subject = 'SaMi'
     number_shooting_points = 100
     trial = '833_1'
-    testing_angle = np.array([0, 15])
+    testing_angle = np.array([0, 1])
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
     model_path = data_path + 'Model/'
@@ -147,7 +147,8 @@ if __name__ == "__main__":
     states_kalman = {'q': q_kalman, 'q_dot': qdot_kalman}
     controls_kalman = {'tau': id(q_kalman, qdot_kalman, qddot_kalman)}
 
-    load_variables_name = load_path + subject + '/Kalman/' + os.path.splitext(c3d_name)[0] + ".pkl"
+    load_path = '/home/andre/BiorbdOptim/examples/optimal_estimation_variable_gravity_ocp/Solutions/'
+    load_variables_name = load_path + subject + '/Kalman/' + os.path.splitext(c3d_name)[0] + "test_angle_" + str(testing_angle[1]) + ".pkl"
     with open(load_variables_name, 'rb') as handle:
         kalman_states = pickle.load(handle)
     # test_Kalman = np.copy(kalman_states['q'][:, ::step_size])

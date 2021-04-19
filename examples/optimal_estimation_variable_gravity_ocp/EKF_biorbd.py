@@ -3,8 +3,10 @@ import scipy.optimize
 import biorbd
 # import BiorbdViz
 import ezc3d
-import os
 import pickle
+import os
+import sys
+sys.path.insert(1, '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp')
 from load_data_filename import load_data_filename
 from reorder_markers import reorder_markers
 
@@ -21,14 +23,29 @@ from reorder_markers import reorder_markers
 # Please also note that kalman will be VERY slow if compiled in debug
 #
 
-subject = 'DoCi'
+def rotating_gravity(biorbd_model, value):
+    # The pre dynamics function is called right before defining the dynamics of the system. If one wants to
+    # modify the dynamics (e.g. optimize the gravity in this case), then this function is the proper way to do it
+    # `biorbd_model` and `value` are mandatory. The former is the actual model to modify, the latter is the casadi.MX
+    # used to modify it,  the size of which decribed by the value `size` in the parameter definition.
+    # The rest of the parameter are defined by the user in the parameter
+    gravity = biorbd_model.getGravity()
+    gravity.applyRT(
+        biorbd.RotoTrans.combineRotAndTrans(biorbd.Rotation.fromEulerAngles(value, 'zx'), biorbd.Vector3d().to_array()))
+    biorbd_model.setGravity(gravity.to_array())
+
+# subject = 'DoCi'
 # subject = 'JeCh'
 # subject = 'BeLa'
 # subject = 'GuSe'
-# subject = 'SaMi'
-trial = '822_short'
+subject = 'SaMi'
+trial = '821_seul_5'
 improve_initial_condition = True
-extra_frames = 20
+extra_frames = 10
+testing_angle = np.array([0, 4])
+
+print('Subject: ', subject, ', Trial: ', trial)
+print('Induced angle: ', testing_angle)
 
 data_path = '/home/andre/Optimisation/data/' + subject + '/'
 model_path = data_path + 'Model/'
@@ -40,10 +57,19 @@ model_name = data_filename['model']
 c3d_name = data_filename['c3d']
 frames = data_filename['frames']
 
-frames = range(frames.start-extra_frames, frames.stop, frames.step)
-
 biorbd_model = biorbd.Model(model_path + model_name)
 c3d = ezc3d.c3d(c3d_path + c3d_name)
+
+biorbd_model.setGravity(biorbd.Vector3d(0, 0, -9.80639).to_array())
+
+optimal_gravity_filename_full = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/' + subject + '/' + os.path.splitext(c3d_name)[0] + '_optimal_gravity_N' + str(frames.stop - frames.start - 1) + '_mixed_EKF' + ".pkl"
+with open(optimal_gravity_filename_full, 'rb') as handle:
+    data = pickle.load(handle)
+angle = data['params']["gravity_angle"].squeeze()
+rotating_gravity(biorbd_model, angle)
+rotating_gravity(biorbd_model, testing_angle*np.pi/180)
+
+frames = range(frames.start-extra_frames, frames.stop, frames.step)
 
 markers_reordered, _ = reorder_markers(biorbd_model, c3d, frames)
 
@@ -94,8 +120,8 @@ for i, targetMarkers in enumerate(markersOverFrames):
     qdd_recons[:, i] = Qddot.to_array()
 
 
-save_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
-save_variables_name = save_path + subject + '/Kalman/' + os.path.splitext(c3d_name)[0] + ".pkl"
+save_path = '/home/andre/BiorbdOptim/examples/optimal_estimation_variable_gravity_ocp/Solutions/'
+save_variables_name = save_path + subject + '/Kalman/' + os.path.splitext(c3d_name)[0] + "test_angle_" + str(testing_angle[1]) + ".pkl"
 with open(save_variables_name, 'wb') as handle:
     pickle.dump({'q': q_recons[:, extra_frames:], 'qd': qd_recons[:, extra_frames:], 'qdd': qdd_recons[:, extra_frames:]},
                 handle, protocol=3)

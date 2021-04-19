@@ -155,13 +155,13 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, markers_ref, q
 
 if __name__ == "__main__":
     start = time.time()
-    # subject = 'DoCi'
+    subject = 'DoCi'
     # subject = 'JeCh'
     # subject = 'BeLa'
     # subject = 'GuSe'
-    subject = 'SaMi'
-    number_shooting_points = 100
-    trial = '821_seul_4'
+    # subject = 'SaMi'
+    number_shooting_points = 70
+    trial = '822_short'
     print('Subject: ', subject, ', Trial: ', trial)
 
     trial_needing_min_torque_diff = {'DoCi': ['44_1'],

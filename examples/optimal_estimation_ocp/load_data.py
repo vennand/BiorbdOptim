@@ -59,6 +59,29 @@ def states_to_markers(biorbd_model, ocp, states):
     return markers
 
 
+def states_to_markers_velocity(biorbd_model, ocp, states):
+    q = states['q']
+    qdot = states['q_dot']
+    n_q = ocp.nlp[0]["model"].nbQ()
+    n_qdot = ocp.nlp[0]["model"].nbQdot()
+    n_mark = ocp.nlp[0]["model"].nbMarkers()
+    n_frames = q.shape[1]
+
+    markers_velocity = np.ndarray((3, n_mark, q.shape[1]))
+    symbolic_q = MX.sym("q", n_q, 1)
+    symbolic_qdot = MX.sym("qdot", n_qdot, 1)
+    # This doesn't work for some mysterious reasons
+    # markers_func = Function(
+    #     "markers_func", [symbolic_q, symbolic_qdot], [biorbd_model.markersVelocity(symbolic_q, symbolic_qdot)], ["q", "q_dot"], ["markers_velocity"]
+    # ).expand()
+    for j in range(n_mark):
+        markers_func = biorbd.to_casadi_func('markers_func', biorbd_model.markerVelocity, symbolic_q, symbolic_qdot, j)
+        for i in range(n_frames):
+            markers_velocity[:, j, i] = markers_func(q[:, i], qdot[:, i]).full().squeeze()
+
+    return markers_velocity
+
+
 def rank_jacobian_marker_state(state, markers_mocap):
     symbolic_states = MX.sym("x", state.shape[0], 1)
     markers_func = Function(
@@ -81,10 +104,10 @@ if __name__ == "__main__":
     # subject = 'DoCi'
     # subject = 'JeCh'
     # subject = 'BeLa'
-    subject = 'GuSe'
-    # subject = 'SaMi'
-    number_shooting_points = 80
-    trial = '44_4'
+    # subject = 'GuSe'
+    subject = 'SaMi'
+    number_shooting_points = 100
+    trial = '821_contact_2'
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
     model_path = data_path + 'Model/'
@@ -177,6 +200,11 @@ if __name__ == "__main__":
     markers_kalman = states_to_markers(biorbd_model, ocp, states_kalman)
     markers_kalman_biorbd = states_to_markers(biorbd_model, ocp, states_kalman_biorbd)
 
+    markers_velocity_OE = states_to_markers_velocity(biorbd_model, ocp, states)
+    markers_velocity_OGE = states_to_markers_velocity(biorbd_model, ocp, states_optimal_gravity)
+    markers_velocity_EKF_matlab = states_to_markers_velocity(biorbd_model, ocp, states_kalman)
+    markers_velocity_EKF_biorbd = states_to_markers_velocity(biorbd_model, ocp, states_kalman_biorbd)
+
     # --- Marker error --- #
     markers_error_OE = np.sqrt(np.sum((markers - markers_mocap) ** 2, axis=0)) * 1000
     markers_error_OGE = np.sqrt(np.sum((markers_optimal_gravity - markers_mocap) ** 2, axis=0)) * 1000
@@ -237,13 +265,6 @@ if __name__ == "__main__":
     # EKF biorbd
     average_distance_between_markers_kalman_biorbd = np.nanmean(markers_error_EKF_biorbd)
     sd_distance_between_markers_kalman_biorbd = np.nanstd(markers_error_EKF_biorbd)
-
-    print('Number of shooting points: ', adjusted_number_shooting_points)
-    print('Average marker error')
-    print('Kalman: ', average_distance_between_markers_kalman, u"\u00B1", sd_distance_between_markers_kalman)
-    print('Kalman biorbd: ', average_distance_between_markers_kalman_biorbd, u"\u00B1", sd_distance_between_markers_kalman_biorbd)
-    print('Optimal gravity: ', average_distance_between_markers_optimal_gravity, u"\u00B1", sd_distance_between_markers_optimal_gravity)
-    print('Estimation: ', average_distance_between_markers, u"\u00B1", sd_distance_between_markers)
 
     average_difference_between_Q_OG = np.sqrt(np.nanmean((states_kalman['q'] - states_optimal_gravity['q']) ** 2, 1))
     sd_difference_between_Q_OG = np.nanstd((states_kalman['q'] - states_optimal_gravity['q']), 1)
@@ -317,6 +338,26 @@ if __name__ == "__main__":
     # print(rank)
     # print(rank.count(biorbd_model.nbQ()) / adjusted_number_shooting_points * 100)
 
+
+    # --- Markers velocity --- #
+
+    model_labels = [label.to_string() for label in biorbd_model.markerNames()]
+
+    norm_markers_velocity_OE = np.linalg.norm(markers_velocity_OE, axis=0)
+    norm_markers_velocity_OGE = np.linalg.norm(markers_velocity_OGE, axis=0)
+    norm_markers_velocity_EKF_matlab = np.linalg.norm(markers_velocity_EKF_matlab, axis=0)
+    norm_markers_velocity_EKF_biorbd = np.linalg.norm(markers_velocity_EKF_biorbd, axis=0)
+
+    idx_max_all_velocity_OE = np.argmax(norm_markers_velocity_OE, axis=0)
+    idx_max_velocity_OE = np.unravel_index(norm_markers_velocity_OE.argmax(), norm_markers_velocity_OE.shape)
+    idx_max_middle_velocity_OE = np.unravel_index(
+        norm_markers_velocity_OE[:, int(adjusted_number_shooting_points/4):int(adjusted_number_shooting_points*3/4)].argmax(),
+        norm_markers_velocity_OE[:, int(adjusted_number_shooting_points/4):int(adjusted_number_shooting_points*3/4)].shape)
+    idx_min_all_velocity_OE = np.argmin(norm_markers_velocity_OE, axis=0)
+    idx_min_velocity_OE = np.unravel_index(norm_markers_velocity_OE.argmin(), norm_markers_velocity_OE.shape)
+    idx_min_middle_velocity_OE = np.unravel_index(
+        norm_markers_velocity_OE[:, int(adjusted_number_shooting_points/4):int(adjusted_number_shooting_points*3/4)].argmin(),
+        norm_markers_velocity_OE[:, int(adjusted_number_shooting_points/4):int(adjusted_number_shooting_points*3/4)].shape)
 
     # --- Plots --- #
 
@@ -444,6 +485,13 @@ if __name__ == "__main__":
     save_name = save_path + subject + '/Plots/' + os.path.splitext(c3d_name)[0] + "_error" + '.png'
     fig_error.savefig(save_name, bbox_inches='tight', pad_inches=0)
 
+    fig_marker_velocity = pyplot.figure(figsize=(20, 10))
+    pyplot.plot(norm_markers_velocity_OE.T, color='blue')
+    fig_marker_velocity = pyplot.figure(figsize=(20, 10))
+    pyplot.plot(norm_markers_velocity_OGE.T, color='red')
+    fig_marker_velocity = pyplot.figure(figsize=(20, 10))
+    pyplot.plot(norm_markers_velocity_EKF_biorbd.T, color='green')
+
     dofs = [range(0, 6), range(6, 9), range(9, 12),
             range(12, 14), range(14, 17), range(17, 19), range(19, 21),
             range(21, 23), range(23, 26), range(26, 28), range(28, 30),
@@ -456,7 +504,7 @@ if __name__ == "__main__":
                  'Right thigh', 'Right leg', 'Right foot',
                  'Left thigh', 'Left leg', 'Left foot',
                  ]
-    # dofs = [range(0, 6)]
+    # dofs = range(0, 6)
     fig_model_dof = [(4, 2), (1, 2), (0, 2),
                      (1, 0), (2, 0), (3, 0), (4, 0),
                      (1, 4), (2, 4), (3, 4), (4, 4),
@@ -480,10 +528,10 @@ if __name__ == "__main__":
         # axs[1].plot(controls_optimal_gravity['tau'][dof, :].T, color='red')
         # axs[1].plot(controls['tau'][dof, :].T, color='green')
         #
-        # fig_qdot = pyplot.figure()
-        # pyplot.plot(states_optimal_gravity['q_dot'][dof, :].T, color='red')
-        # pyplot.plot(states['q_dot'][dof, :].T, color='green')
-        # pyplot.plot(states_kalman_biorbd['q_dot'][dof, :].T, color='blue')
+        fig_qdot = pyplot.figure()
+        pyplot.plot(states_kalman_biorbd['q_dot'][dof, :].T, color='blue')
+        pyplot.plot(states_optimal_gravity['q_dot'][dof, :].T, color='red')
+        pyplot.plot(states['q_dot'][dof, :].T, color='green')
         # fig_qdot.suptitle(dofs_name[idx_dof])
         # #
         # # fig = pyplot.figure()
@@ -644,22 +692,41 @@ if __name__ == "__main__":
     save_path = 'Solutions/'
     fig_model_Q.tight_layout
     save_name = save_path + subject + '/Plots/' + os.path.splitext(c3d_name)[0] + '_model_Q' + '.png'
-    fig_model_Q.savefig(save_name)
+    # fig_model_Q.savefig(save_name)
 
     fig_model_U.tight_layout
     save_name = save_path + subject + '/Plots/' + os.path.splitext(c3d_name)[0] + '_model_U' + '.png'
-    fig_model_U.savefig(save_name)
+    # fig_model_U.savefig(save_name)
 
     fig_model_error_missing.tight_layout
     save_name = save_path + subject + '/Plots/' + os.path.splitext(c3d_name)[0] + '_model_Error' + '.png'
-    fig_model_error_missing.savefig(save_name)
-
-    # pyplot.show()
-
+    # fig_model_error_missing.savefig(save_name)
+    #
     # print('Angular momentum OE: ', mean_OE.squeeze())
     # print('Linear momentum OE: ', slope_lm / total_mass / (duration / adjusted_number_shooting_points))
 
+    print('Number of shooting points: ', adjusted_number_shooting_points)
+    print('Average marker error')
+    print('Kalman: ', average_distance_between_markers_kalman, u"\u00B1", sd_distance_between_markers_kalman)
+    print('Kalman biorbd: ', average_distance_between_markers_kalman_biorbd, u"\u00B1", sd_distance_between_markers_kalman_biorbd)
+    print('Optimal gravity: ', average_distance_between_markers_optimal_gravity, u"\u00B1", sd_distance_between_markers_optimal_gravity)
+    print('Estimation: ', average_distance_between_markers, u"\u00B1", sd_distance_between_markers)
+
+    # for idx_node, idx_max in enumerate(idx_max_all_velocity_OE):
+    #     print('Max', model_labels[idx_max], norm_markers_velocity_OE[idx_max, idx_node])
+    # for idx_node, idx_min in enumerate(idx_min_all_velocity_OE):
+    #     print('Min', model_labels[idx_min], norm_markers_velocity_OE[idx_min, idx_node])
+    print('Max velocity for whole movement: ', model_labels[idx_max_velocity_OE[0]], norm_markers_velocity_OE[idx_max_velocity_OE])
+    print('Max velocity for middle of movement: ', model_labels[idx_max_middle_velocity_OE[0]], norm_markers_velocity_OE[:, int(adjusted_number_shooting_points/4):int(adjusted_number_shooting_points*3/4)][idx_max_middle_velocity_OE])
+    print('Min velocity for whole movement: ', model_labels[idx_min_velocity_OE[0]], norm_markers_velocity_OE[idx_min_velocity_OE])
+    print('Min velocity for middle of movement: ', model_labels[idx_min_middle_velocity_OE[0]], norm_markers_velocity_OE[:, int(adjusted_number_shooting_points / 4):int(adjusted_number_shooting_points * 3 / 4)][idx_min_middle_velocity_OE])
+    print('Mean max velocity: ', np.mean(norm_markers_velocity_OE[idx_max_all_velocity_OE, range(0, idx_max_all_velocity_OE.size)]))
+    print('Mean min velocity: ', np.mean(norm_markers_velocity_OE[idx_min_all_velocity_OE, range(0, idx_min_all_velocity_OE.size)]))
+    print('Mean velocity: ', np.mean(norm_markers_velocity_OE))
+
     print('Average percentage of missing markers: ', np.mean(nb_nan))
+
+    pyplot.show()
 
     # --- Show results --- #
     # ShowResult(ocp, sol).animate(nb_frames=adjusted_number_shooting_points)
