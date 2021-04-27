@@ -102,12 +102,12 @@ def rank_jacobian_marker_state(state, markers_mocap):
 
 if __name__ == "__main__":
     # subject = 'DoCi'
-    # subject = 'JeCh'
+    subject = 'JeCh'
     # subject = 'BeLa'
     # subject = 'GuSe'
-    subject = 'SaMi'
+    # subject = 'SaMi'
     number_shooting_points = 100
-    trial = '821_contact_2'
+    trial = '833_5'
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
     model_path = data_path + 'Model/'
@@ -528,10 +528,10 @@ if __name__ == "__main__":
         # axs[1].plot(controls_optimal_gravity['tau'][dof, :].T, color='red')
         # axs[1].plot(controls['tau'][dof, :].T, color='green')
         #
-        fig_qdot = pyplot.figure()
-        pyplot.plot(states_kalman_biorbd['q_dot'][dof, :].T, color='blue')
-        pyplot.plot(states_optimal_gravity['q_dot'][dof, :].T, color='red')
-        pyplot.plot(states['q_dot'][dof, :].T, color='green')
+        # fig_qdot = pyplot.figure()
+        # pyplot.plot(states_kalman_biorbd['q_dot'][dof, :].T, color='blue')
+        # pyplot.plot(states_optimal_gravity['q_dot'][dof, :].T, color='red')
+        # pyplot.plot(states['q_dot'][dof, :].T, color='green')
         # fig_qdot.suptitle(dofs_name[idx_dof])
         # #
         # # fig = pyplot.figure()
@@ -726,7 +726,16 @@ if __name__ == "__main__":
 
     print('Average percentage of missing markers: ', np.mean(nb_nan))
 
-    pyplot.show()
+
+    print_gravity = Function('print_gravity', [], [biorbd_model.getGravity().to_mx()], [], ['gravity'])
+    gravity = print_gravity()['gravity'].full().squeeze()
+    print('Optimal gravity vector: ', gravity[0], gravity[1], gravity[2])
+    print('EKF linear momentum slope: ', (slope_lm_kalman[0]/total_mass/(duration/adjusted_number_shooting_points))[0][0],
+                                       (slope_lm_kalman[1]/total_mass/(duration/adjusted_number_shooting_points))[0][0],
+                                       (slope_lm_kalman[2]/total_mass/(duration/adjusted_number_shooting_points))[0][0],
+                                       np.linalg.norm(slope_lm_kalman/total_mass/(duration/adjusted_number_shooting_points)))
+
+    # pyplot.show()
 
     # --- Show results --- #
     # ShowResult(ocp, sol).animate(nb_frames=adjusted_number_shooting_points)

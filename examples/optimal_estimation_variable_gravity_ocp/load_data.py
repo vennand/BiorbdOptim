@@ -78,13 +78,13 @@ def rank_jacobian_marker_state(state, markers_mocap):
 
 
 if __name__ == "__main__":
-    # subject = 'DoCi'
-    subject = 'JeCh'
+    subject = 'DoCi'
+    # subject = 'JeCh'
     # subject = 'BeLa'
     # subject = 'GuSe'
     # subject = 'SaMi'
     number_shooting_points = 100
-    trial = '833_1'
+    trial = '822'
     testing_angle = np.array([0, 1])
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
@@ -638,18 +638,18 @@ if __name__ == "__main__":
 
     save_path = 'Solutions/'
     fig_model_Q.tight_layout
-    save_name = save_path + subject + '/Plots/' + os.path.splitext(c3d_name)[0] + '_model_Q' + '.png'
+    save_name = save_path + subject + '/Plots/' + os.path.splitext(c3d_name)[0] + '_model_Q' + "_test_angle_" + str(testing_angle[1]) + '.png'
     fig_model_Q.savefig(save_name)
 
     fig_model_U.tight_layout
-    save_name = save_path + subject + '/Plots/' + os.path.splitext(c3d_name)[0] + '_model_U' + '.png'
+    save_name = save_path + subject + '/Plots/' + os.path.splitext(c3d_name)[0] + '_model_U' + "_test_angle_" + str(testing_angle[1]) + '.png'
     fig_model_U.savefig(save_name)
 
     fig_model_error_missing.tight_layout
-    save_name = save_path + subject + '/Plots/' + os.path.splitext(c3d_name)[0] + '_model_Error' + '.png'
+    save_name = save_path + subject + '/Plots/' + os.path.splitext(c3d_name)[0] + '_model_Error' + "_test_angle_" + str(testing_angle[1]) + '.png'
     fig_model_error_missing.savefig(save_name)
 
-    # pyplot.show()
+    pyplot.show()
 
     # --- Show results --- #
     # ShowResult(ocp, sol).animate(nb_frames=adjusted_number_shooting_points)

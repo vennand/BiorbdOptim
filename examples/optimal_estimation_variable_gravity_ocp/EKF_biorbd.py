@@ -34,15 +34,15 @@ def rotating_gravity(biorbd_model, value):
         biorbd.RotoTrans.combineRotAndTrans(biorbd.Rotation.fromEulerAngles(value, 'zx'), biorbd.Vector3d().to_array()))
     biorbd_model.setGravity(gravity.to_array())
 
-# subject = 'DoCi'
+subject = 'DoCi'
 # subject = 'JeCh'
 # subject = 'BeLa'
 # subject = 'GuSe'
-subject = 'SaMi'
-trial = '821_seul_5'
+# subject = 'SaMi'
+trial = '822'
 improve_initial_condition = True
 extra_frames = 10
-testing_angle = np.array([0, 4])
+testing_angle = np.array([0, 10])
 
 print('Subject: ', subject, ', Trial: ', trial)
 print('Induced angle: ', testing_angle)
