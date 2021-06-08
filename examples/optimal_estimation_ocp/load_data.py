@@ -102,12 +102,15 @@ def rank_jacobian_marker_state(state, markers_mocap):
 
 if __name__ == "__main__":
     # subject = 'DoCi'
-    subject = 'JeCh'
+    # subject = 'JeCh'
     # subject = 'BeLa'
     # subject = 'GuSe'
-    # subject = 'SaMi'
+    subject = 'SaMi'
     number_shooting_points = 100
-    trial = '833_5'
+    trial = '821_822_3'
+
+    print('Subject: ', subject)
+    print('Trial: ', trial)
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
     model_path = data_path + 'Model/'
@@ -216,10 +219,13 @@ if __name__ == "__main__":
 
     # --- By segments --- #
     segments = dict()
+    dof_idx = 0
     for segment_idx in range(biorbd_model.nbSegment()):
         segments[biorbd_model.segment(segment_idx).id()] = {
             'name': biorbd_model.segment(segment_idx).name().to_string(),
-            'markers_idx': []}
+            'markers_idx': [],
+            'dofs': range(dof_idx, dof_idx + biorbd_model.segment(segment_idx).nbDof())}
+        dof_idx += biorbd_model.segment(segment_idx).nbDof()
     for marker_idx in range(biorbd_model.nbMarkers()):
         segments[biorbd_model.marker(marker_idx).parentId()]['markers_idx'].append(marker_idx)
 
@@ -249,40 +255,88 @@ if __name__ == "__main__":
         segment_missing_markers[segment['name']] = np.count_nonzero(np.isnan([markers_mocap[0, marker_idx, :] for marker_idx in segment['markers_idx']])) / len(segment['markers_idx']) / markers_mocap.shape[2] * 100
         segment_missing_markers_per_node[segment['name']] = np.count_nonzero(np.isnan([markers_mocap[0, marker_idx, :] for marker_idx in segment['markers_idx']]), axis=0) / len(segment['markers_idx']) * 100
 
+    trunk_segments = ['Pelvis', 'Thorax', 'Tete']
+    arms_segments = ['EpauleD', 'BrasD', 'ABrasD', 'MainD', 'EpauleG', 'BrasG', 'ABrasG', 'MainG']
+    legs_segments = ['CuisseD', 'JambeD', 'PiedD', 'CuisseG', 'JambeG', 'PiedG']
+
+    trunk_marker_error_OE = [segment_marker_error_OE[segment] for segment in trunk_segments]
+    arms_marker_error_OE = [segment_marker_error_OE[segment] for segment in arms_segments]
+    legs_marker_error_OE = [segment_marker_error_OE[segment] for segment in legs_segments]
+
+    trunk_marker_error_OGE = [segment_marker_error_OGE[segment] for segment in trunk_segments]
+    arms_marker_error_OGE = [segment_marker_error_OGE[segment] for segment in arms_segments]
+    legs_marker_error_OGE = [segment_marker_error_OGE[segment] for segment in legs_segments]
+
+    trunk_marker_error_EKF_matlab = [segment_marker_error_EKF_matlab[segment] for segment in trunk_segments]
+    arms_marker_error_EKF_matlab = [segment_marker_error_EKF_matlab[segment] for segment in arms_segments]
+    legs_marker_error_EKF_matlab = [segment_marker_error_EKF_matlab[segment] for segment in legs_segments]
+
+    trunk_marker_error_EKF_biorbd = [segment_marker_error_EKF_biorbd[segment] for segment in trunk_segments]
+    arms_marker_error_EKF_biorbd = [segment_marker_error_EKF_biorbd[segment] for segment in arms_segments]
+    legs_marker_error_EKF_biorbd = [segment_marker_error_EKF_biorbd[segment] for segment in legs_segments]
+
     # --- Stats --- #
     #OE
     average_distance_between_markers = np.nanmean(markers_error_OE)
     sd_distance_between_markers = np.nanstd(markers_error_OE)
 
-    # OG
+    average_distance_between_markers_OE_trunk = np.nanmean(trunk_marker_error_OE)
+    sd_distance_between_markers_OE_trunk = np.nanstd(trunk_marker_error_OE)
+    average_distance_between_markers_OE_arms = np.nanmean(arms_marker_error_OE)
+    sd_distance_between_markers_OE_arms = np.nanstd(arms_marker_error_OE)
+    average_distance_between_markers_OE_legs = np.nanmean(legs_marker_error_OE)
+    sd_distance_between_markers_OE_legs = np.nanstd(legs_marker_error_OE)
+
+    # OGE
     average_distance_between_markers_optimal_gravity = np.nanmean(markers_error_OGE)
     sd_distance_between_markers_optimal_gravity = np.nanstd(markers_error_OGE)
+
+    average_distance_between_markers_OGE_trunk = np.nanmean(trunk_marker_error_OGE)
+    sd_distance_between_markers_OGE_trunk = np.nanstd(trunk_marker_error_OGE)
+    average_distance_between_markers_OGE_arms = np.nanmean(arms_marker_error_OGE)
+    sd_distance_between_markers_OGE_arms = np.nanstd(arms_marker_error_OGE)
+    average_distance_between_markers_OGE_legs = np.nanmean(legs_marker_error_OGE)
+    sd_distance_between_markers_OGE_legs = np.nanstd(legs_marker_error_OGE)
 
     # EKF
     average_distance_between_markers_kalman = np.nanmean(markers_error_EKF_matlab)
     sd_distance_between_markers_kalman = np.nanstd(markers_error_EKF_matlab)
 
+    average_distance_between_markers_EKF_matlab_trunk = np.nanmean(trunk_marker_error_EKF_matlab)
+    sd_distance_between_markers_EKF_matlab_trunk = np.nanstd(trunk_marker_error_EKF_matlab)
+    average_distance_between_markers_EKF_matlab_arms = np.nanmean(arms_marker_error_EKF_matlab)
+    sd_distance_between_markers_EKF_matlab_arms = np.nanstd(arms_marker_error_EKF_matlab)
+    average_distance_between_markers_EKF_matlab_legs = np.nanmean(legs_marker_error_EKF_matlab)
+    sd_distance_between_markers_EKF_matlab_legs = np.nanstd(legs_marker_error_EKF_matlab)
+
     # EKF biorbd
     average_distance_between_markers_kalman_biorbd = np.nanmean(markers_error_EKF_biorbd)
     sd_distance_between_markers_kalman_biorbd = np.nanstd(markers_error_EKF_biorbd)
 
-    average_difference_between_Q_OG = np.sqrt(np.nanmean((states_kalman['q'] - states_optimal_gravity['q']) ** 2, 1))
-    sd_difference_between_Q_OG = np.nanstd((states_kalman['q'] - states_optimal_gravity['q']), 1)
-    average_difference_between_Q_OE = np.sqrt(np.nanmean((states_kalman['q'] - states['q']) ** 2, 1))
-    sd_difference_between_Q_OE = np.nanstd((states_kalman['q'] - states['q']), 1)
+    average_distance_between_markers_EKF_biorbd_trunk = np.nanmean(trunk_marker_error_EKF_biorbd)
+    sd_distance_between_markers_EKF_biorbd_trunk = np.nanstd(trunk_marker_error_EKF_biorbd)
+    average_distance_between_markers_EKF_biorbd_arms = np.nanmean(arms_marker_error_EKF_biorbd)
+    sd_distance_between_markers_EKF_biorbd_arms = np.nanstd(arms_marker_error_EKF_biorbd)
+    average_distance_between_markers_EKF_biorbd_legs = np.nanmean(legs_marker_error_EKF_biorbd)
+    sd_distance_between_markers_EKF_biorbd_legs = np.nanstd(legs_marker_error_EKF_biorbd)
 
-    average_difference_between_Qd_OG = np.sqrt(np.nanmean((states_kalman['q_dot'] - states_optimal_gravity['q_dot']) ** 2, 1))
-    sd_difference_between_Qd_OG = np.nanstd((states_kalman['q_dot'] - states_optimal_gravity['q_dot']), 1)
-    average_difference_between_Qd_OE = np.sqrt(np.nanmean((states_kalman['q_dot'] - states['q_dot']) ** 2, 1))
-    sd_difference_between_Qd_OE = np.nanstd((states_kalman['q_dot'] - states['q_dot']), 1)
+    RMSE_difference_between_Q_OGE = np.sqrt(np.mean((states_kalman_biorbd['q'] - states_optimal_gravity['q']) ** 2))
+    RMSE_difference_between_Q_OE = np.sqrt(np.mean((states_kalman_biorbd['q'] - states['q']) ** 2))
 
-    # print('Average state error vs Kalman')
-    # print('Optimal gravity')
-    # print('Q: ', average_difference_between_Q_OG, u"\u00B1", sd_difference_between_Q_OG)
-    # print('Qd: ', average_difference_between_Qd_OG, u"\u00B1", sd_difference_between_Qd_OG)
-    # print('Estimation')
-    # print('Q: ', average_difference_between_Q_OE, u"\u00B1", sd_difference_between_Q_OE)
-    # print('Qd: ', average_difference_between_Qd_OE, u"\u00B1", sd_difference_between_Qd_OE)
+    trunk_dofs = range(0, 12)
+    arms_dofs = range(12, 30)
+    legs_dofs = range(30, 42)
+
+    RMSE_difference_between_Q_OGE_trunk = np.sqrt(np.mean((states_kalman_biorbd['q'] - states_optimal_gravity['q'])[trunk_dofs, :] ** 2))
+    RMSE_difference_between_Q_OE_trunk = np.sqrt(np.mean((states_kalman_biorbd['q'] - states['q'])[trunk_dofs, :] ** 2))
+    RMSE_difference_between_Q_OGE_arms = np.sqrt(np.mean((states_kalman_biorbd['q'] - states_optimal_gravity['q'])[arms_dofs, :] ** 2))
+    RMSE_difference_between_Q_OE_arms = np.sqrt(np.mean((states_kalman_biorbd['q'] - states['q'])[arms_dofs, :] ** 2))
+    RMSE_difference_between_Q_OGE_legs = np.sqrt(np.mean((states_kalman_biorbd['q'] - states_optimal_gravity['q'])[legs_dofs, :] ** 2))
+    RMSE_difference_between_Q_OE_legs = np.sqrt(np.mean((states_kalman_biorbd['q'] - states['q'])[legs_dofs, :] ** 2))
+
+    RMSE_difference_between_Q_OGE_segment = []
+    for segment in segments.values():
+        RMSE_difference_between_Q_OGE_segment.append(np.sqrt(np.mean((states_kalman_biorbd['q'][segment['dofs']] - states_optimal_gravity['q'][segment['dofs']]) ** 2)))
 
     momentum_OE = am(states['q'], states['q_dot'], qddot).full()
     momentum_OGE = am(states_optimal_gravity['q'], states_optimal_gravity['q_dot'], qddot_optimal_gravity).full()
@@ -441,7 +495,7 @@ if __name__ == "__main__":
     # --- Missing markers --- #
     fig_error, axs_error = pyplot.subplots(nrows=2, ncols=1, figsize=(20, 10), gridspec_kw={'height_ratios': [1/4, 1]})
 
-    nb_nan = np.count_nonzero(np.isnan(markers_mocap[0, :, :]), axis=0) / markers_mocap.shape[1] * 100
+    nb_nan = np.count_nonzero(np.isnan(markers_mocap[0, :, :]), axis=0) / markers_mocap.shape[1] * 100 # Percentage
     im = axs_error[0].imshow(nb_nan[np.newaxis, :], cmap="plasma", aspect="auto")
 
     # axs_error[0].set_ylabel('% of missing markers', rotation=0, fontsize=9, horizontalalignment='right')
@@ -701,9 +755,6 @@ if __name__ == "__main__":
     fig_model_error_missing.tight_layout
     save_name = save_path + subject + '/Plots/' + os.path.splitext(c3d_name)[0] + '_model_Error' + '.png'
     # fig_model_error_missing.savefig(save_name)
-    #
-    # print('Angular momentum OE: ', mean_OE.squeeze())
-    # print('Linear momentum OE: ', slope_lm / total_mass / (duration / adjusted_number_shooting_points))
 
     print('Number of shooting points: ', adjusted_number_shooting_points)
     print('Average marker error')
@@ -712,30 +763,110 @@ if __name__ == "__main__":
     print('Optimal gravity: ', average_distance_between_markers_optimal_gravity, u"\u00B1", sd_distance_between_markers_optimal_gravity)
     print('Estimation: ', average_distance_between_markers, u"\u00B1", sd_distance_between_markers)
 
-    # for idx_node, idx_max in enumerate(idx_max_all_velocity_OE):
-    #     print('Max', model_labels[idx_max], norm_markers_velocity_OE[idx_max, idx_node])
-    # for idx_node, idx_min in enumerate(idx_min_all_velocity_OE):
-    #     print('Min', model_labels[idx_min], norm_markers_velocity_OE[idx_min, idx_node])
-    print('Max velocity for whole movement: ', model_labels[idx_max_velocity_OE[0]], norm_markers_velocity_OE[idx_max_velocity_OE])
-    print('Max velocity for middle of movement: ', model_labels[idx_max_middle_velocity_OE[0]], norm_markers_velocity_OE[:, int(adjusted_number_shooting_points/4):int(adjusted_number_shooting_points*3/4)][idx_max_middle_velocity_OE])
-    print('Min velocity for whole movement: ', model_labels[idx_min_velocity_OE[0]], norm_markers_velocity_OE[idx_min_velocity_OE])
-    print('Min velocity for middle of movement: ', model_labels[idx_min_middle_velocity_OE[0]], norm_markers_velocity_OE[:, int(adjusted_number_shooting_points / 4):int(adjusted_number_shooting_points * 3 / 4)][idx_min_middle_velocity_OE])
-    print('Mean max velocity: ', np.mean(norm_markers_velocity_OE[idx_max_all_velocity_OE, range(0, idx_max_all_velocity_OE.size)]))
-    print('Mean min velocity: ', np.mean(norm_markers_velocity_OE[idx_min_all_velocity_OE, range(0, idx_min_all_velocity_OE.size)]))
-    print('Mean velocity: ', np.mean(norm_markers_velocity_OE))
-
-    print('Average percentage of missing markers: ', np.mean(nb_nan))
-
-
+    # print('Max velocity for whole movement: ', model_labels[idx_max_velocity_OE[0]], norm_markers_velocity_OE[idx_max_velocity_OE])
+    # print('Max velocity for middle of movement: ', model_labels[idx_max_middle_velocity_OE[0]], norm_markers_velocity_OE[:, int(adjusted_number_shooting_points/4):int(adjusted_number_shooting_points*3/4)][idx_max_middle_velocity_OE])
+    # print('Min velocity for whole movement: ', model_labels[idx_min_velocity_OE[0]], norm_markers_velocity_OE[idx_min_velocity_OE])
+    # print('Min velocity for middle of movement: ', model_labels[idx_min_middle_velocity_OE[0]], norm_markers_velocity_OE[:, int(adjusted_number_shooting_points / 4):int(adjusted_number_shooting_points * 3 / 4)][idx_min_middle_velocity_OE])
+    # print('Mean max velocity: ', np.mean(norm_markers_velocity_OE[idx_max_all_velocity_OE, range(0, idx_max_all_velocity_OE.size)]))
+    # print('Mean min velocity: ', np.mean(norm_markers_velocity_OE[idx_min_all_velocity_OE, range(0, idx_min_all_velocity_OE.size)]))
+    # print('Mean velocity: ', np.mean(norm_markers_velocity_OE))
+    #
+    # print('Average percentage of missing markers: ', np.mean(nb_nan))
+    #
+    #
     print_gravity = Function('print_gravity', [], [biorbd_model.getGravity().to_mx()], [], ['gravity'])
     gravity = print_gravity()['gravity'].full().squeeze()
-    print('Optimal gravity vector: ', gravity[0], gravity[1], gravity[2])
-    print('EKF linear momentum slope: ', (slope_lm_kalman[0]/total_mass/(duration/adjusted_number_shooting_points))[0][0],
-                                       (slope_lm_kalman[1]/total_mass/(duration/adjusted_number_shooting_points))[0][0],
-                                       (slope_lm_kalman[2]/total_mass/(duration/adjusted_number_shooting_points))[0][0],
-                                       np.linalg.norm(slope_lm_kalman/total_mass/(duration/adjusted_number_shooting_points)))
+    # print('EKF linear momentum slope: ', (slope_lm_kalman[0]/total_mass/(duration/adjusted_number_shooting_points))[0][0],
+    #                                    (slope_lm_kalman[1]/total_mass/(duration/adjusted_number_shooting_points))[0][0],
+    #                                    (slope_lm_kalman[2]/total_mass/(duration/adjusted_number_shooting_points))[0][0],
+    #                                    np.linalg.norm(slope_lm_kalman/total_mass/(duration/adjusted_number_shooting_points)))
 
-    # pyplot.show()
+    # pyplot.show
+
+    save_path = 'Solutions/' + subject + '/' + os.path.splitext(c3d_name)[0] + '_stats'
+    save_variables_name = save_path + '.pkl'
+    with open(save_variables_name, 'wb') as handle:
+        pickle.dump({'subject': subject, 'trial': trial, 'adjusted_number_shooting_points': adjusted_number_shooting_points,
+                     'frames': frames, 'duration': duration, 'frequency': frequency, 'step_size': step_size,
+                     'model_labels': model_labels, 'gravity': gravity, 'gravity_angle': angle,
+                     'states_EKF': states_kalman_biorbd, 'controls_EKF': controls_kalman_biorbd,
+                     'q_EKF': q_kalman_biorbd, 'qdot_EKF': qdot_kalman_biorbd, 'qddot_EKF': qddot_kalman_biorbd,
+                     'states_OGE': states_optimal_gravity, 'controls_OGE': controls_optimal_gravity,
+                     'q_OGE': states_optimal_gravity['q'], 'qdot_OGE': states_optimal_gravity['q_dot'], 'qddot_OGE': qddot_optimal_gravity.full(),
+                     'states_OE': states, 'controls_OE': controls,
+                     'q_OE': states['q'], 'qdot_OE': states['q_dot'], 'qddot_OE': qddot.full(),
+                     'diff_Q_EKF_OGE': RMSE_difference_between_Q_OGE, 'diff_Q_EKF_OE': RMSE_difference_between_Q_OE,
+                     'diff_Q_EKF_OGE_trunk': RMSE_difference_between_Q_OGE_trunk, 'diff_Q_EKF_OE_trunk': RMSE_difference_between_Q_OE_trunk,
+                     'diff_Q_EKF_OGE_arms': RMSE_difference_between_Q_OGE_arms, 'diff_Q_EKF_OE_arms': RMSE_difference_between_Q_OE_arms,
+                     'diff_Q_EKF_OGE_legs': RMSE_difference_between_Q_OGE_legs, 'diff_Q_EKF_OE_legs': RMSE_difference_between_Q_OE_legs,
+                     'markers_mocap': markers_mocap,
+                     'markers_EKF': markers_kalman_biorbd,
+                     'markers_OGE': markers_optimal_gravity,
+                     'markers_OE': markers,
+                     'markers_error_EKF': markers_error_EKF_biorbd,
+                     'markers_error_OGE': markers_error_OGE,
+                     'markers_error_OE': markers_error_OE,
+                     'segments': segments, 'segment_names': segment_names,
+                     'segment_marker_error_EKF_biorbd': segment_marker_error_EKF_biorbd,
+                     'segment_marker_error_OGE': segment_marker_error_OGE,
+                     'segment_marker_error_OE': segment_marker_error_OE,
+                     'segment_marker_error_EKF_biorbd_per_node': segment_marker_error_EKF_biorbd_per_node,
+                     'segment_marker_error_OGE_per_node': segment_marker_error_OGE_per_node,
+                     'segment_marker_error_OE_per_node': segment_marker_error_OE_per_node,
+                     'segment_missing_markers': segment_missing_markers,
+                     'segment_missing_markers_per_node': segment_missing_markers_per_node,
+                     'markers_velocity_EKF': markers_velocity_EKF_biorbd,
+                     'markers_velocity_OGE': markers_velocity_OGE,
+                     'markers_velocity_OE': markers_velocity_OE,
+                     'norm_markers_velocity_OE': norm_markers_velocity_OE,
+                     'idx_max_velocity_OE': idx_max_velocity_OE, 'idx_max_middle_velocity_OE': idx_max_middle_velocity_OE,
+                     'idx_min_velocity_OE': idx_min_velocity_OE, 'idx_min_middle_velocity_OE': idx_min_middle_velocity_OE,
+                     'mean_max_velocity': np.mean(norm_markers_velocity_OE[idx_max_all_velocity_OE, range(0, idx_max_all_velocity_OE.size)]),
+                     'mean_min_velocity': np.mean(norm_markers_velocity_OE[idx_min_all_velocity_OE, range(0, idx_min_all_velocity_OE.size)]),
+                     'mean_veloity': np.mean(norm_markers_velocity_OE),
+                     'mean_%_missing_markers': np.mean(nb_nan), 'missing_markers_per_node': missing_markers_per_node,
+                     'average_distance_between_markers_EKF_biorbd': average_distance_between_markers_kalman_biorbd,
+                     'sd_distance_between_markers_EKF_biorbd': sd_distance_between_markers_kalman_biorbd,
+                     'average_distance_between_markers_OGE': average_distance_between_markers_optimal_gravity,
+                     'sd_distance_between_markers_OGE': sd_distance_between_markers_optimal_gravity,
+                     'average_distance_between_markers_OE': average_distance_between_markers,
+                     'sd_distance_between_markers_OE': sd_distance_between_markers,
+                     'average_distance_between_markers_EKF_biorbd_trunk': average_distance_between_markers_EKF_biorbd_trunk,
+                     'sd_distance_between_markers_EKF_biorbd_trunk': sd_distance_between_markers_EKF_biorbd_trunk,
+                     'average_distance_between_markers_EKF_biorbd_arms': average_distance_between_markers_EKF_biorbd_arms,
+                     'sd_distance_between_markers_EKF_biorbd_arms': sd_distance_between_markers_EKF_biorbd_arms,
+                     'average_distance_between_markers_EKF_biorbd_legs': average_distance_between_markers_EKF_biorbd_legs,
+                     'sd_distance_between_markers_EKF_biorbd_legs': sd_distance_between_markers_EKF_biorbd_legs,
+                     'average_distance_between_markers_OGE_trunk': average_distance_between_markers_OGE_trunk,
+                     'sd_distance_between_markers_OGE_trunk': sd_distance_between_markers_OGE_trunk,
+                     'average_distance_between_markers_OGE_arms': average_distance_between_markers_OGE_arms,
+                     'sd_distance_between_markers_OGE_arms': sd_distance_between_markers_OGE_arms,
+                     'average_distance_between_markers_OGE_legs': average_distance_between_markers_OGE_legs,
+                     'sd_distance_between_markers_OGE_legs': sd_distance_between_markers_OGE_legs,
+                     'average_distance_between_markers_OE_trunk': average_distance_between_markers_OE_trunk,
+                     'sd_distance_between_markers_OE_trunk': sd_distance_between_markers_OE_trunk,
+                     'average_distance_between_markers_OE_arms': average_distance_between_markers_OE_arms,
+                     'sd_distance_between_markers_OE_arms': sd_distance_between_markers_OE_arms,
+                     'average_distance_between_markers_OE_legs': average_distance_between_markers_OE_legs,
+                     'sd_distance_between_markers_OE_legs': sd_distance_between_markers_OE_legs,
+                     'momentum_EKF': momentum_EKF,
+                     'momentum_OGE': momentum_OGE,
+                     'momentum_OE': momentum_OE,
+                     'RMSE_momentum_EKF': RMSE_momentum_EKF,
+                     'RMSE_momentum_OGE': RMSE_momentum_OGE,
+                     'RMSE_momentum_OE': RMSE_momentum_OE,
+                     'total_mass': total_mass,
+                     'linear_momentum_EKF': linear_momentum_kalman,
+                     'linear_momentum_OGE': linear_momentum_optimal_gravity,
+                     'linear_momentum_OE': linear_momentum,
+                     'RMSE_linear_momentum_EKF': RMSE_linear_momentum_EKF,
+                     'RMSE_linear_momentum_OGE': RMSE_linear_momentum_OGE,
+                     'RMSE_linear_momentum_OE': RMSE_linear_momentum_OE,
+                     'EKF_lm_gravity': slope_lm_kalman / total_mass / (duration / adjusted_number_shooting_points),
+                     'OGE_lm_gravity': slope_lm_optimal_gravity / total_mass / (duration / adjusted_number_shooting_points),
+                     'OE_lm_gravity': slope_lm / total_mass / (duration / adjusted_number_shooting_points),
+                     'rank': rank, '%_full_rank': rank.count(biorbd_model.nbQ()) / adjusted_number_shooting_points * 100, },
+                      handle, protocol=3)
 
     # --- Show results --- #
     # ShowResult(ocp, sol).animate(nb_frames=adjusted_number_shooting_points)

@@ -26,7 +26,7 @@ subject = 'DoCi'
 # subject = 'BeLa'
 # subject = 'GuSe'
 # subject = 'SaMi'
-trial = '822_short'
+trial = '822'
 improve_initial_condition = True
 extra_frames = 20
 

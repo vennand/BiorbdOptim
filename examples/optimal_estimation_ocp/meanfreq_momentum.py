@@ -4,6 +4,7 @@ import numpy as np
 from casadi import MX
 import ezc3d
 import pickle
+from scipy import stats
 from scipy.io import loadmat
 import os
 import sys
@@ -32,8 +33,10 @@ if __name__ == "__main__":
     fft_freq = []
 
     FFT_momentum_OE_sum = []
+    FFT_momentum_OGE_sum = []
     FFT_momentum_EKF_biorbd_sum = []
     MNF_momentum_OE_sum = []
+    MNF_momentum_OGE_sum = []
     MNF_momentum_EKF_biorbd_sum = []
 
     for subject_trial in subjects_trials:
@@ -125,7 +128,34 @@ if __name__ == "__main__":
         # --- Momentum EKF --- #
 
         momentum_OE = am(states['q'], states['q_dot'], fd(states['q'], states['q_dot'], controls['tau'])).full()
+        momentum_OGE = am(states_optimal_gravity['q'], states_optimal_gravity['q_dot'], fd(states_optimal_gravity['q'], states_optimal_gravity['q_dot'], controls_optimal_gravity['tau'])).full()
         momentum_EKF = am(q_kalman_biorbd, qdot_kalman_biorbd, qddot_kalman_biorbd).full()
+
+        mean_OE = np.mean(momentum_OE, axis=1)
+        mean_OGE = np.mean(momentum_OGE, axis=1)
+        mean_EKF = np.mean(momentum_EKF, axis=1)
+
+        RMSE_momentum_OE = np.sqrt(np.mean((momentum_OE - mean_OE[:, np.newaxis]) ** 2, axis=1))
+        RMSE_momentum_OGE = np.sqrt(np.mean((momentum_OGE - mean_OGE[:, np.newaxis]) ** 2, axis=1))
+        RMSE_momentum_EKF = np.sqrt(np.mean((momentum_EKF - mean_EKF[:, np.newaxis]) ** 2, axis=1))
+
+        median_OE = np.median(momentum_OE, axis=1)
+        median_OGE = np.median(momentum_OGE, axis=1)
+        median_EKF = np.median(momentum_EKF, axis=1)
+
+        mad_OE = np.median(np.abs(momentum_OE - median_OE[:, np.newaxis]), axis=1)
+        mad_OGE = np.median(np.abs(momentum_OGE - median_OGE[:, np.newaxis]), axis=1)
+        mad_EKF = np.median(np.abs(momentum_EKF - median_EKF[:, np.newaxis]), axis=1)
+
+        max_OE = np.amax(momentum_OE, axis=1)
+        max_OGE = np.amax(momentum_OGE, axis=1)
+        max_EKF = np.amax(momentum_EKF, axis=1)
+
+        min_OE = np.amin(momentum_OE, axis=1)
+        min_OGE = np.amin(momentum_OGE, axis=1)
+        min_EKF = np.amin(momentum_EKF, axis=1)
+
+        k2_momentum_EKF, p_momentum_EKF = stats.normaltest(momentum_EKF, axis=1)
 
         # --- MATLAB --- #
         eng = matlab.engine.start_matlab()
@@ -139,6 +169,13 @@ if __name__ == "__main__":
         FFT_momentum_OE_sum.append(P1)
         MNF_momentum_OE_sum.append(eng.meanfreq(signal, (frequency / step_size)))
 
+        signal = matlab.double(np.sum(momentum_OGE, axis=0).tolist())
+        P2 = np.abs(np.asarray(eng.fft(signal)).squeeze()) / L
+        P1 = P2[0:int(L / 2)]
+        P1[1:-1] = 2 * P1[1:-1]
+        FFT_momentum_OGE_sum.append(P1)
+        MNF_momentum_OGE_sum.append(eng.meanfreq(signal, (frequency / step_size)))
+
         signal = matlab.double(np.sum(momentum_EKF, axis=0).tolist())
         P2 = np.abs(np.asarray(eng.fft(signal)).squeeze()) / L
         P1 = P2[0:int(L / 2)]
@@ -151,7 +188,25 @@ if __name__ == "__main__":
         fft_freq.append(frequency / step_size * np.arange(0, int(L/2)) / L)
 
         print('Angular momentum OE : ', MNF_momentum_OE_sum[-1])
+        print('Angular momentum OE : ', MNF_momentum_OGE_sum[-1])
         print('Angular momentum EKF biorbd : ', MNF_momentum_EKF_biorbd_sum[-1])
+
+        print('EKF mean: ', mean_EKF[0], mean_EKF[1], mean_EKF[2])
+        print('EKF RMSE: ', RMSE_momentum_EKF[0], RMSE_momentum_EKF[1], RMSE_momentum_EKF[2])
+        print('EKF median: ', median_EKF[0], median_EKF[1], median_EKF[2])
+        print('EKF MAD: ', mad_EKF[0], mad_EKF[1], mad_EKF[2])
+        print('EKF max: ', max_EKF[0], max_EKF[1], max_EKF[2])
+        print('EKF min: ', min_EKF[0], min_EKF[1], min_EKF[2])
+
+        # print('OE mean: ', mean_OE[0], mean_OE[1], mean_OE[2])
+        # print('OGE mean: ', mean_OGE[0], mean_OGE[1], mean_OGE[2])
+        # print('EKF stats: ', mean_EKF[0], mean_EKF[1], mean_EKF[2],
+        #                      RMSE_momentum_EKF[0], RMSE_momentum_EKF[1], RMSE_momentum_EKF[2],
+        #                      median_EKF[0], median_EKF[1], median_EKF[2],
+        #                      mad_EKF[0], mad_EKF[1], mad_EKF[2],
+        #                      max_EKF[0], max_EKF[1], max_EKF[2],
+        #                      min_EKF[0], min_EKF[1], min_EKF[2],
+        #       )
 
     # --- Plots --- #
 

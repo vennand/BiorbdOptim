@@ -14,6 +14,12 @@ def load_data_filename(subject, trial):
             qd_name = 'Do_822_contact_2_MOD200.00_GenderF_DoCig_V.mat'
             qdd_name = 'Do_822_contact_2_MOD200.00_GenderF_DoCig_A.mat'
             frames = range(3119, 3330)
+        if trial == '822_time_inverted':
+            c3d_name = 'Do_822_contact_2_time_inverted.c3d'
+            q_name = 'Do_822_contact_2_MOD200.00_GenderF_DoCig_Q.mat'
+            qd_name = 'Do_822_contact_2_MOD200.00_GenderF_DoCig_V.mat'
+            qdd_name = 'Do_822_contact_2_MOD200.00_GenderF_DoCig_A.mat'
+            frames = range(3089, 3360)
         elif trial == '44_1':
             c3d_name = 'Do_44_mvtPrep_1.c3d'
             q_name = 'Do_44_mvtPrep_1_MOD200.00_GenderF_DoCig_Q.mat'

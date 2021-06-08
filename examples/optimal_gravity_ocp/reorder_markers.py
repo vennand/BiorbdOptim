@@ -1,7 +1,7 @@
 import numpy as np
 
 def reorder_markers(biorbd_model, c3d, frames, step_size=1, broken_dofs=None):
-    markers = c3d['data']['points'][:3, :95, frames.start:frames.stop:step_size] / 1000
+    markers = c3d['data']['points'][:3, :95, frames.start:frames.stop:frames.step][:, :, ::step_size] / 1000
     c3d_labels = c3d['parameters']['POINT']['LABELS']['value'][:95]
     model_labels = [label.to_string() for label in biorbd_model.markerNames()]
 

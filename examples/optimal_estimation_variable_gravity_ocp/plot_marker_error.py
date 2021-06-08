@@ -27,11 +27,11 @@ if __name__ == "__main__":
     fig = pyplot.figure(figsize=(20, 10))
 
     pyplot.plot(induced_gravity, marker_error.T, '-s', markersize=11)
-    pyplot.xlabel('Induced gravity deviation (°)', fontsize=15)
-    pyplot.ylabel('Marker error (mm)', fontsize=15)
-    pyplot.xticks(fontsize=11)
-    pyplot.yticks(fontsize=11)
-    fig.legend(['One somersault, two twist', 'Two somersaults, one and a half twists (pike)', 'Two somersaults, two twists', 'Two somersaults, three twists'], fontsize=14)
+    pyplot.xlabel('Induced gravity deviation (°)', fontsize=16)
+    pyplot.ylabel('Marker error (mm)', fontsize=16)
+    pyplot.xticks(fontsize=14)
+    pyplot.yticks(fontsize=14)
+    fig.gca().legend(['One somersault, two twist', 'Two somersaults, one and a half twists (pike)', 'Two somersaults, two twists', 'Two somersaults, three twists'], fontsize=15, loc="lower right")
 
     save_path = 'Solutions/'
     save_name = save_path + "induced_gravity_marker_error" + '.png'

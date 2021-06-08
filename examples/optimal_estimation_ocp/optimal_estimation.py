@@ -160,8 +160,8 @@ if __name__ == "__main__":
     # subject = 'BeLa'
     # subject = 'GuSe'
     # subject = 'SaMi'
-    number_shooting_points = 70
-    trial = '822_short'
+    number_shooting_points = 100
+    trial = '822_time_inverted'
     print('Subject: ', subject, ', Trial: ', trial)
 
     trial_needing_min_torque_diff = {'DoCi': ['44_1'],
@@ -239,7 +239,7 @@ if __name__ == "__main__":
 
     ocp = prepare_ocp(
         biorbd_model=biorbd_model, final_time=duration, number_shooting_points=adjusted_number_shooting_points,
-        markers_ref=markers_rotated, q_init=q_ref, qdot_init=qdot_ref, tau_init=tau_ref,
+        markers_ref=markers_rotated[:, :, ::-1], q_init=q_ref, qdot_init=qdot_ref, tau_init=tau_ref,
         xmin=xmin, xmax=xmax, min_torque_diff=min_torque_diff,
     )
 

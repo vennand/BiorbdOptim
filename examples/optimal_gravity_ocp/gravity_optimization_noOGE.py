@@ -30,19 +30,6 @@ from biorbd_optim import (
     Solver,
 )
 
-
-def rotating_gravity(biorbd_model, value):
-    # The pre dynamics function is called right before defining the dynamics of the system. If one wants to
-    # modify the dynamics (e.g. optimize the gravity in this case), then this function is the proper way to do it
-    # `biorbd_model` and `value` are mandatory. The former is the actual model to modify, the latter is the casadi.MX
-    # used to modify it,  the size of which decribed by the value `size` in the parameter definition.
-    # The rest of the parameter are defined by the user in the parameter
-    gravity = biorbd_model.getGravity()
-    gravity.applyRT(
-        biorbd.RotoTrans.combineRotAndTrans(biorbd.Rotation.fromEulerAngles(value, 'zx'), biorbd.Vector3d()))
-    biorbd_model.setGravity(gravity)
-
-
 def inverse_dynamics(biorbd_model, q_ref, qd_ref, qdd_ref):
     q = MX.sym("Q", biorbd_model.nbQ(), 1)
     qdot = MX.sym("Qdot", biorbd_model.nbQdot(), 1)
@@ -119,20 +106,6 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
     tau_init = np.zeros(tau_init.shape)
     U_init.add(tau_init, interpolation=InterpolationType.EACH_FRAME)
 
-    # Define the parameter to optimize
-    # Give the parameter some min and max bounds
-    parameters = ParameterList()
-    bound_gravity = Bounds(min_bound=min_g, max_bound=max_g, interpolation=InterpolationType.CONSTANT)
-    # and an initial condition
-    initial_gravity_orientation = InitialConditions([0, 0])
-    parameters.add(
-        parameter_name="gravity_angle",  # The name of the parameter
-        function=rotating_gravity,  # The function that modifies the biorbd model
-        bounds=bound_gravity,  # The bounds
-        initial_guess=initial_gravity_orientation,  # The initial guess
-        size=2,  # The number of elements this particular parameter vector has
-    )
-
     return OptimalControlProgram(
         biorbd_model,
         dynamics,
@@ -145,32 +118,31 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, q_ref, qdot_re
         objective_functions,
         # constraints,
         nb_integration_steps=4,
-        parameters=parameters,
         nb_threads=4,
     )
 
 
 if __name__ == "__main__":
     start = time.time()
-    subject = 'DoCi'
+    # subject = 'DoCi'
     # subject = 'JeCh'
     # subject = 'BeLa'
-    # subject = 'GuSe'
+    subject = 'GuSe'
     # subject = 'SaMi'
     number_shooting_points = 100
-    trial = '822'
+    trial = '44_4'
     print('Subject: ', subject, ', Trial: ', trial)
 
-    trial_needing_min_torque_diff = {'DoCi': ['44_1'],
-                                     'BeLa': ['44_2'],
-                                     'JeCh': ['833_5'],
-                                     'SaMi': ['821_822_2',
-                                              '821_contact_2',
-                                              '821_seul_3', '821_seul_4']}
+    # trial_needing_min_torque_diff = {'DoCi': ['44_1'],
+    #                                  'BeLa': ['44_2'],
+    #                                  'JeCh': ['833_5'],
+    #                                  'SaMi': ['821_822_2',
+    #                                           '821_contact_2',
+    #                                           '821_seul_3', '821_seul_4']}
     min_torque_diff = False
-    if subject in trial_needing_min_torque_diff.keys():
-        if trial in trial_needing_min_torque_diff[subject]:
-            min_torque_diff = True
+    # if subject in trial_needing_min_torque_diff.keys():
+    #     if trial in trial_needing_min_torque_diff[subject]:
+    #         min_torque_diff = True
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
     model_path = data_path + 'Model/'
@@ -256,32 +228,21 @@ if __name__ == "__main__":
     sol = ocp.solve(solver=Solver.IPOPT, solver_options=options, show_online_optim=False)
 
     # --- Get the results --- #
-    states, controls, params = Data.get_data(ocp, sol, get_parameters=True)
+    states, controls = Data.get_data(ocp, sol)
 
     # --- Save --- #
     save_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
     # save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF' + ".bo"
-    save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF'
+    save_name = save_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF_noOGE'
     ocp.save(sol, save_name + ".bo")
-
-    biorbd_model = biorbd.Model(model_path + model_name)
-    biorbd_model.setGravity(initial_gravity)
-    rotating_gravity(biorbd_model, params["gravity_angle"].squeeze())
-    print_gravity = Function('print_gravity', [], [biorbd_model.getGravity().to_mx()], [], ['gravity'])
-    gravity = print_gravity()['gravity'].full().squeeze()
 
     save_variables_name = save_name + ".pkl"
     with open(save_variables_name, 'wb') as handle:
-        pickle.dump({'states': states, 'controls': controls, 'params': params, 'gravity': gravity},
+        pickle.dump({'states': states, 'controls': controls, 'mocap': markers_reordered},
                     handle, protocol=3)
 
     # --- Load --- #
     # ocp, sol = OptimalControlProgram.load(save_name)
-
-    angle = params["gravity_angle"].squeeze()/np.pi*180
-    print('Number of shooting points: ', adjusted_number_shooting_points)
-    print('Gravity rotation: ', angle)
-    print('Gravity: ', gravity)
 
     if broken_dofs is not None:
         print('Abnormal Kalman states at DoFs: ', broken_dofs)
