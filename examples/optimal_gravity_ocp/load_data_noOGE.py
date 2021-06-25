@@ -41,10 +41,10 @@ if __name__ == "__main__":
     # subject = 'DoCi'
     # subject = 'JeCh'
     # subject = 'BeLa'
-    subject = 'GuSe'
-    # subject = 'SaMi'
+    # subject = 'GuSe'
+    subject = 'SaMi'
     number_shooting_points = 100
-    trial = '44_4'
+    trial = '821_seul_2'
 
     data_filename = load_data_filename(subject, trial)
     model_name = data_filename['model']

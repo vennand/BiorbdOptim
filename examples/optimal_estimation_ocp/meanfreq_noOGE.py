@@ -21,13 +21,6 @@ from adjust_Kalman import shift_by_2pi
 
 
 if __name__ == "__main__":
-    # subjects_trials = [((('DoCi', '44_1')), (('DoCi', '44_2'), ('DoCi', '44_3'))),
-    #                    ((('BeLa', '44_3')), (('BeLa', '44_1'), ('BeLa', '44_3'))),
-    #                    ((('SaMi', '821_contact_2')), (('SaMi', '821_contact_1'), ('SaMi', '821_contact_3'))),
-    #                    ((('SaMi', '821_seul_3'), ('SaMi', '821_seul_4')), (('SaMi', '821_seul_1'), ('SaMi', '821_seul_2'), ('SaMi', '821_seul_5'))),
-    #                    ((('SaMi', '821_822_2')), (('SaMi', '821_822_2'))),
-    #                    ]
-
     subjects_trials = [('DoCi', '822', 100), ('DoCi', '44_1', 100), ('DoCi', '44_2', 100), ('DoCi', '44_3', 100),
                        ('BeLa', '44_1', 100), ('BeLa', '44_2', 80), ('BeLa', '44_3', 100),
                        ('GuSe', '44_2', 80), ('GuSe', '44_3', 100), ('GuSe', '44_4', 100),
@@ -40,9 +33,11 @@ if __name__ == "__main__":
     fft_freq = []
 
     FFT_OE_sum = []
+    FFT_OGE_sum = []
     FFT_EKF_biorbd_sum = []
 
     MNF_OE_sum = []
+    MNF_OGE_sum = []
     MNF_EKF_biorbd_sum = []
 
     for subject_trial in subjects_trials:
@@ -102,14 +97,14 @@ if __name__ == "__main__":
         step_size = data['step_size']
 
         load_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
-        # optimal_gravity_filename = load_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF'
-        #
-        # optimal_gravity_filename = optimal_gravity_filename + ".pkl"
-        # with open(optimal_gravity_filename, 'rb') as handle:
-        #     data = pickle.load(handle)
-        #
-        # states_optimal_gravity = data['states']
-        # controls_optimal_gravity = data['controls']
+        optimal_gravity_filename = load_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF_noOGE'
+
+        optimal_gravity_filename = optimal_gravity_filename + ".pkl"
+        with open(optimal_gravity_filename, 'rb') as handle:
+            data = pickle.load(handle)
+
+        states_optimal_gravity = data['states']
+        controls_optimal_gravity = data['controls']
 
         load_variables_name = load_path + subject + '/Kalman/' + os.path.splitext(c3d_name)[0] + ".pkl"
         with open(load_variables_name, 'rb') as handle:
@@ -133,6 +128,13 @@ if __name__ == "__main__":
         FFT_OE_sum.append(P1)
         MNF_OE_sum.append(eng.meanfreq(signal, (frequency / step_size)))
 
+        signal = matlab.double(np.sum(controls_optimal_gravity['tau'], axis=0).tolist())
+        P2 = np.abs(np.asarray(eng.fft(signal)).squeeze()) / L
+        P1 = P2[0:int(L / 2)]
+        P1[1:-1] = 2 * P1[1:-1]
+        FFT_OGE_sum.append(P1)
+        MNF_OGE_sum.append(eng.meanfreq(signal, (frequency / step_size)))
+
         signal = matlab.double(np.sum(controls_kalman_biorbd['tau'][6:, :], axis=0).tolist())
         P2 = np.abs(np.asarray(eng.fft(signal)).squeeze()) / L
         P1 = P2[0:int(L / 2)]
@@ -148,8 +150,8 @@ if __name__ == "__main__":
     save_name = save_path + 'meanfreq_noOGE'
     save_variables_name = save_name + ".pkl"
     with open(save_variables_name, 'wb') as handle:
-        pickle.dump({'MNF': {'EKF_biorbd': MNF_EKF_biorbd_sum, 'OE': MNF_OE_sum},
-                     'FFT': {'EKF_biorbd': FFT_EKF_biorbd_sum, 'OE': FFT_OE_sum, 'freq': fft_freq}},
+        pickle.dump({'MNF': {'EKF_biorbd': MNF_EKF_biorbd_sum, 'OGE': MNF_OGE_sum, 'OE': MNF_OE_sum},
+                     'FFT': {'EKF_biorbd': FFT_EKF_biorbd_sum, 'OGE': FFT_OGE_sum, 'OE': FFT_OE_sum, 'freq': fft_freq}},
                     handle, protocol=3)
 
     print('EKF biorbd :', MNF_EKF_biorbd_sum)

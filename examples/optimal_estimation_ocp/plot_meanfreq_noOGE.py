@@ -22,13 +22,6 @@ from adjust_Kalman import shift_by_2pi
 
 
 if __name__ == "__main__":
-    # subjects_trials = [((('DoCi', '44_1')), (('DoCi', '44_2'), ('DoCi', '44_3'))),
-    #                    ((('BeLa', '44_3')), (('BeLa', '44_1'), ('BeLa', '44_3'))),
-    #                    ((('SaMi', '821_contact_2')), (('SaMi', '821_contact_1'), ('SaMi', '821_contact_3'))),
-    #                    ((('SaMi', '821_seul_3'), ('SaMi', '821_seul_4')), (('SaMi', '821_seul_1'), ('SaMi', '821_seul_2'), ('SaMi', '821_seul_5'))),
-    #                    ((('SaMi', '821_822_2')), (('SaMi', '821_822_2'))),
-    #                    ]
-
     subjects_trials = [('DoCi', '822', 100), ('DoCi', '44_1', 100), ('DoCi', '44_2', 100), ('DoCi', '44_3', 100),
                        ('BeLa', '44_1', 100), ('BeLa', '44_2', 80), ('BeLa', '44_3', 100),
                        ('GuSe', '44_2', 80), ('GuSe', '44_3', 100), ('GuSe', '44_4', 100),
@@ -39,12 +32,11 @@ if __name__ == "__main__":
                       ]
 
     load_path = 'Solutions/'
-    load_name = load_path + 'meanfreq'
+    load_name = load_path + 'meanfreq_noOGE'
     load_variables_name = load_name + ".pkl"
     with open(load_variables_name, 'rb') as handle:
         data = pickle.load(handle)
 
-    MNF_EKF_matlab_sum = data['MNF']['EKF_matlab']
     MNF_EKF_biorbd_sum = data['MNF']['EKF_biorbd']
     MNF_OGE_sum = data['MNF']['OGE']
     MNF_OE_sum = data['MNF']['OE']
@@ -107,10 +99,10 @@ if __name__ == "__main__":
     # Draw swarmplot
     fig = pyplot.figure(figsize=(10, 10))
     sns.set(font_scale=1.5)
+    sns.set(rc={'axes.facecolor': 'white', 'figure.facecolor': 'white'})
     ax = sns.swarmplot(data=data, x='recons_type', y='MNF', size=10)
     ax.set(xlabel="")
     # ax.set_ylim([0, 21])
-
 
     # # Create dataset for each movement
     # data_44 = data.loc[data['trials'].isin(['44_1', '44_2', '44_3', '44_4'])]
@@ -214,7 +206,7 @@ if __name__ == "__main__":
 
     save_path = 'Solutions/'
     fig.tight_layout
-    save_name = save_path + 'MNF_controls' + '.png'
-    fig.savefig(save_name)
+    save_name = save_path + 'MNF_controls_noOGE' + '.png'
+    fig.savefig(save_name, bbox_inches='tight')
 
     pyplot.show()

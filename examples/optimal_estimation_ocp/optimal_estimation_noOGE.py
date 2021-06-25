@@ -83,8 +83,8 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, markers_ref, q
     objective_functions.add(Objective.Lagrange.TRACK_MARKERS, weight=1, target=markers_ref)
     # objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=1e-7, target=tau_init)
     # objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=1e-7)
-    objective_functions.add(Objective.Lagrange.MINIMIZE_STATE, weight=1e-5, target=state_ref)
-    objective_functions.add(Objective.Lagrange.MINIMIZE_STATE, weight=1e-5, states_idx=range(6, n_q))
+    # objective_functions.add(Objective.Lagrange.MINIMIZE_STATE, weight=1e-5, target=state_ref)
+    # objective_functions.add(Objective.Lagrange.MINIMIZE_STATE, weight=1e-5, states_idx=range(6, n_q))
     control_weight_segments = [0   , 0   , 0   ,  # pelvis trans
                                0   , 0   , 0   ,  # pelvis rot
                                1e-7, 1e-7, 1e-6,  # thorax
@@ -105,7 +105,7 @@ def prepare_ocp(biorbd_model, final_time, number_shooting_points, markers_ref, q
                                1e-4, 1e-3,        # left foot
                                ]
     for idx in range(n_tau):
-      objective_functions.add(Objective.Lagrange.TRACK_TORQUE, weight=control_weight_segments[idx], target=tau_init, controls_idx=idx)
+      # objective_functions.add(Objective.Lagrange.TRACK_TORQUE, weight=control_weight_segments[idx], target=tau_init, controls_idx=idx)
       objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE, weight=control_weight_segments[idx], controls_idx=idx)
     if min_torque_diff:
         objective_functions.add(Objective.Lagrange.MINIMIZE_TORQUE_DERIVATIVE, weight=1e-5)

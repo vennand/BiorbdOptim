@@ -127,22 +127,21 @@ if __name__ == "__main__":
     # subject = 'DoCi'
     # subject = 'JeCh'
     # subject = 'BeLa'
-    subject = 'GuSe'
-    # subject = 'SaMi'
+    # subject = 'GuSe'
+    subject = 'SaMi'
     number_shooting_points = 100
-    trial = '44_4'
+    trial = '821_seul_2'
     print('Subject: ', subject, ', Trial: ', trial)
 
-    # trial_needing_min_torque_diff = {'DoCi': ['44_1'],
-    #                                  'BeLa': ['44_2'],
-    #                                  'JeCh': ['833_5'],
-    #                                  'SaMi': ['821_822_2',
-    #                                           '821_contact_2',
-    #                                           '821_seul_3', '821_seul_4']}
+    trial_needing_min_torque_diff = {
+                                     'DoCi': ['44_1'],
+                                     'SaMi': ['821_contact_1', '821_contact_2',
+                                              '821_seul_2', '821_seul_4']
+                                    }
     min_torque_diff = False
-    # if subject in trial_needing_min_torque_diff.keys():
-    #     if trial in trial_needing_min_torque_diff[subject]:
-    #         min_torque_diff = True
+    if subject in trial_needing_min_torque_diff.keys():
+        if trial in trial_needing_min_torque_diff[subject]:
+            min_torque_diff = True
 
     data_path = '/home/andre/Optimisation/data/' + subject + '/'
     model_path = data_path + 'Model/'

@@ -61,7 +61,7 @@ def x_bounds(biorbd_model):
             qmin_jambe_gauche +
             qmin_pied_gauche +
             qdotmin_base +  # qdot
-            [-200] * (n_qdot - 6))
+            [-100] * (n_qdot - 6))
 
     xmax = (qmax_base +
             qmax_thorax +
@@ -81,6 +81,6 @@ def x_bounds(biorbd_model):
             qmax_jambe_gauche +
             qmax_pied_gauche +
             qdotmax_base +  # qdot
-            [200] * (n_qdot - 6))
+            [100] * (n_qdot - 6))
 
     return xmin, xmax

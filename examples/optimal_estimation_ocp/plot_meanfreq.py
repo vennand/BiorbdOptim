@@ -107,10 +107,10 @@ if __name__ == "__main__":
     # Draw swarmplot
     fig = pyplot.figure(figsize=(10, 10))
     sns.set(font_scale=1.5)
+    sns.set(rc={'axes.facecolor': 'white', 'figure.facecolor': 'white'})
     ax = sns.swarmplot(data=data, x='recons_type', y='MNF', size=10)
     ax.set(xlabel="")
     # ax.set_ylim([0, 21])
-
 
     # # Create dataset for each movement
     # data_44 = data.loc[data['trials'].isin(['44_1', '44_2', '44_3', '44_4'])]
@@ -215,6 +215,6 @@ if __name__ == "__main__":
     save_path = 'Solutions/'
     fig.tight_layout
     save_name = save_path + 'MNF_controls' + '.png'
-    fig.savefig(save_name)
+    fig.savefig(save_name, bbox_inches='tight')
 
     pyplot.show()
