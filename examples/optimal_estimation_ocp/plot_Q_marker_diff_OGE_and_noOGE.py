@@ -223,7 +223,7 @@ if __name__ == "__main__":
         diff_markers_OE_trial_sd_all['legs'].append(data['sd_distance_between_markers_OE_legs'])
 
     segment = ['Trunk', 'Arms', 'Legs']
-    movement = ['44', '821', '822', '833']
+    movement = ['44/', '821<', '822/', '833/']
 
     # Create dataset
     nb_44 = len(diff_Q_EKF_OE_44_all)

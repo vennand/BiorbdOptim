@@ -178,7 +178,7 @@ if __name__ == "__main__":
         diff_markers_OE_trial_segments.append(data['segment_marker_error_OE'])
 
     segment = ['Trunk', 'Arms', 'Legs']
-    movement = ['44', '821', '822', '833']
+    movement = ['44/', '821<', '822/', '833/']
 
     nb_44 = len(diff_Q_EKF_OE_44_all)
     nb_821 = len(diff_Q_EKF_OE_821_all)
@@ -204,7 +204,7 @@ if __name__ == "__main__":
     diff_markers_segments = np.repeat(np.array([diff_markers_EKF_44_segments, diff_markers_EKF_821_segments, diff_markers_EKF_822_segments, diff_markers_EKF_833_segments,
                                       diff_markers_OGE_44_segments, diff_markers_OGE_821_segments, diff_markers_OGE_822_segments, diff_markers_OGE_833_segments,
                                       diff_markers_OE_44_segments, diff_markers_OE_821_segments, diff_markers_OE_822_segments, diff_markers_OE_833_segments], dtype=object), 3)
-    recons_type_marker = np.array(['EKF'] * 3 * 4 + ['Joint angle tracking,\nnormal gravity'] * 3 * 4 + ['Marker tracking,\nnormal gravity'] * 3 * 4)
+    recons_type_marker = np.array(['EKF'] * 3 * 4 + ['Joint angle tracking'] * 3 * 4 + ['Marker tracking'] * 3 * 4)
     movements_marker = np.array(list(np.repeat(movement, 3)) * 3)
     segments_marker = np.array(segment * 4 * 3)
 
@@ -234,14 +234,14 @@ if __name__ == "__main__":
             h_bar.append(ax_df.bar(x + offsets[i], dfg[val].apply(lambda x: np.mean(x)).values , width=width, label="{} {}".format(subcat, gr), yerr=dfg[val].apply(lambda x: np.std(x)).values, color=clrs_bright[i], zorder=0))
             for x_i in x:
                 h_scatter.append(ax_df.scatter([x_i + offsets[i]]*len(dfg[val].values[x_i]), dfg[val].values[x_i], color='black', zorder=1))
-                if i==1:
-                    for seg_j in dfg[seg].values[x_i]:
-                        h_scatter_seg.append(ax_df.scatter(x_i + offsets[i], seg_j['MainD'], color='purple', zorder=1))
-                        h_scatter_seg.append(ax_df.scatter(x_i + offsets[i], seg_j['MainG'], color='red', zorder=1))
-                if i==2:
-                    for seg_j in dfg[seg].values[x_i]:
-                        h_scatter_seg.append(ax_df.scatter(x_i + offsets[i], seg_j['PiedD'], color='purple', zorder=1))
-                        h_scatter_seg.append(ax_df.scatter(x_i + offsets[i], seg_j['PiedG'], color='red', zorder=1))
+                # if i==1:
+                #     for seg_j in dfg[seg].values[x_i]:
+                #         h_scatter_seg.append(ax_df.scatter(x_i + offsets[i], seg_j['MainD'], color='purple', zorder=1))
+                #         h_scatter_seg.append(ax_df.scatter(x_i + offsets[i], seg_j['MainG'], color='red', zorder=1))
+                # if i==2:
+                #     for seg_j in dfg[seg].values[x_i]:
+                #         h_scatter_seg.append(ax_df.scatter(x_i + offsets[i], seg_j['PiedD'], color='purple', zorder=1))
+                #         h_scatter_seg.append(ax_df.scatter(x_i + offsets[i], seg_j['PiedG'], color='red', zorder=1))
         ax_df.set_xlabel(df['recons_type'].unique().squeeze(), fontsize=14)
         ax_df.set_xticks(x)
         ax_df.set_xticklabels(u)
@@ -274,11 +274,44 @@ if __name__ == "__main__":
     for axs in axs_marker_custom.squeeze():
         plot_ylimits.append(axs.get_ylim()[1])
 
-    # plot_ymax = max(plot_ylimits)
-    plot_ymax = 360
+    plot_ymax = max(plot_ylimits)
+    # plot_ymax = 360
     pyplot.setp(axs_marker_custom, ylim=(0, plot_ymax))
 
     print(data_Q_all.groupby(['movements', 'recons_type']).mean())
+    print(data_Q_all.groupby(['movements', 'recons_type']).std())
+    print('EKF marker error: ', np.mean(data_marker[0]['diff_markers_all'].sum()), ' ± ', np.std(data_marker[0]['diff_markers_all'].sum()))
+    print('OGE marker error: ', np.mean(data_marker[1]['diff_markers_all'].sum()), ' ± ', np.std(data_marker[1]['diff_markers_all'].sum()))
+    print('OE marker error: ', np.mean(data_marker[2]['diff_markers_all'].sum()), ' ± ', np.std(data_marker[2]['diff_markers_all'].sum()))
+
+    # End chain mean RMS
+    end_chain_RMS_hands = []
+    end_chain_RMS_feet = []
+    for idx, method in enumerate(data_marker):
+        end_chain_RMS_hands.append([])
+        end_chain_RMS_feet.append([])
+        segments_marker_trial = [item for sublist in method[method['segments'] == 'Trunk']['diff_markers_segments'].to_list() for item in sublist]
+        for trial in segments_marker_trial:
+            end_chain_RMS_hands[idx].append([trial['MainD'], trial['MainG']])
+            end_chain_RMS_feet[idx].append([trial['PiedD'], trial['PiedG']])
+
+    end_chain_821_RMS_hands = []
+    end_chain_833_RMS_hands = []
+    for idx, method in enumerate(data_marker):
+        end_chain_821_RMS_hands.append([])
+        segments_marker_trial_821 = [item for sublist in method[(method['segments'] == 'Trunk') & (method['movements'] == '821<')]['diff_markers_segments'].to_list() for item in sublist]
+        for trial in segments_marker_trial_821:
+            end_chain_821_RMS_hands[idx].append([trial['MainD']])
+
+        end_chain_833_RMS_hands.append([])
+        segments_marker_trial_833 = [item for sublist in method[(method['segments'] == 'Trunk') & (method['movements'] == '833/')]['diff_markers_segments'].to_list() for item in sublist]
+        for trial in segments_marker_trial_833:
+            end_chain_833_RMS_hands[idx].append([trial['MainG']])
+
+    print('Hands mean RMS: ', [np.nanmean(method) for method in end_chain_RMS_hands])
+    print('Feet mean RMS: ', [np.nanmean(method) for method in end_chain_RMS_feet])
+    print('Right hand mean RMS for 821: ', [np.nanmean(method) for method in end_chain_821_RMS_hands])
+    print('Left hand mean RMS for 833: ', [np.nanmean(method) for method in end_chain_833_RMS_hands])
 
     save_path = 'Solutions/'
     fig_Q_all.tight_layout

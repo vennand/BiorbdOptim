@@ -46,6 +46,7 @@ biorbd_model = biorbd.Model(model_path + model_name)
 c3d = ezc3d.c3d(c3d_path + c3d_name)
 
 markers_reordered, _ = reorder_markers(biorbd_model, c3d, frames)
+markers_reordered += 60
 
 markers_reordered[np.isnan(markers_reordered)] = 0.0  # Remove NaN
 
@@ -95,7 +96,7 @@ for i, targetMarkers in enumerate(markersOverFrames):
 
 
 save_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
-save_variables_name = save_path + subject + '/Kalman/' + os.path.splitext(c3d_name)[0] + ".pkl"
+save_variables_name = save_path + subject + '/Kalman/' + os.path.splitext(c3d_name)[0] + "_translated.pkl"
 with open(save_variables_name, 'wb') as handle:
     pickle.dump({'q': q_recons[:, extra_frames:], 'qd': qd_recons[:, extra_frames:], 'qdd': qdd_recons[:, extra_frames:]},
                 handle, protocol=3)

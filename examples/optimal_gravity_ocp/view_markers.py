@@ -39,7 +39,7 @@ def rotating_gravity(biorbd_model, value):
 # subject = 'BeLa'
 # subject = 'GuSe'
 subject = 'SaMi'
-trial = '821_seul_5'
+trial = '821_contact_1'
 number_shooting_points = 100
 
 data_path = '/home/andre/Optimisation/data/' + subject + '/'
@@ -75,7 +75,7 @@ biorbd_model.setGravity(biorbd.Vector3d(0, 0, -9.80639))
 #     kalman_states = pickle.load(handle)
 # q_ref = kalman_states['q'][:, ::step_size]
 
-### OGE .bo ###
+### OGE ###
 # load_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
 # load_name = load_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF'
 # ocp, sol = OptimalControlProgram.load(load_name + '.bo')
@@ -84,15 +84,22 @@ biorbd_model.setGravity(biorbd.Vector3d(0, 0, -9.80639))
 # gravity_angle = params["gravity_angle"].squeeze()
 # rotating_gravity(biorbd_model, gravity_angle)
 
+### OGE no OGE ###
+load_path = '/home/andre/BiorbdOptim/examples/optimal_gravity_ocp/Solutions/'
+load_name = load_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points) + '_mixed_EKF_noOGE'
+ocp, sol = OptimalControlProgram.load(load_name + '.bo')
+states, controls, params = Data.get_data(ocp, sol, get_parameters=True)
+q_ref = states['q']
+
 ### OE ###
-load_path = '/home/andre/BiorbdOptim/examples/optimal_estimation_ocp/Solutions/'
-load_name = load_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points)
-load_variables_name = load_name + ".pkl"
-with open(load_variables_name, 'rb') as handle:
-    data = pickle.load(handle)
-q_ref = data['states']['q']
-gravity_angle = data['gravity_angle']
-rotating_gravity(biorbd_model, gravity_angle)
+# load_path = '/home/andre/BiorbdOptim/examples/optimal_estimation_ocp/Solutions/'
+# load_name = load_path + subject + '/' + os.path.splitext(c3d_name)[0] + "_optimal_gravity_N" + str(adjusted_number_shooting_points)
+# load_variables_name = load_name + ".pkl"
+# with open(load_variables_name, 'rb') as handle:
+#     data = pickle.load(handle)
+# q_ref = data['states']['q']
+# gravity_angle = data['gravity_angle']
+# rotating_gravity(biorbd_model, gravity_angle)
 
 frequency = c3d['header']['points']['frame_rate']
 # q_ref, qdot_ref, qddot_ref = correct_Kalman(q_ref, qdot_ref, qddot_ref, frequency)
